@@ -366,7 +366,7 @@ pre .k, pre .kd, pre .kn, pre .kp, pre .kr, pre .kt, pre .javascript .function {
 @media (min-width: 768px) and (max-width: 991px) { .back-to-top { display: none; } }
 .back-to-top.back-to-top-on { bottom: 19px; }
 
-.header { background: transparent; }
+.header { background: url(/assets/images/bg.jpg) center top no-repeat; }
 
 .header-inner { position: relative; }
 
@@ -558,7 +558,7 @@ pre .k, pre .kd, pre .kn, pre .kp, pre .kr, pre .kt, pre .javascript .function {
 .links-of-author { margin-top: 20px; }
 
 .links-of-author a { display: inline-block; vertical-align: middle; margin-right: 10px; margin-bottom: 10px; border-bottom-color: #555; font-size: 13px; }
-.links-of-author a:before { display: inline-block; vertical-align: middle; margin-right: 3px; content: " "; width: 4px; height: 4px; border-radius: 50%; background: #529100; }
+.links-of-author a:before { display: inline-block; vertical-align: middle; margin-right: 3px; content: " "; width: 4px; height: 4px; border-radius: 50%; background: #47ffff; }
 
 .links-of-blogroll { font-size: 13px; }
 
