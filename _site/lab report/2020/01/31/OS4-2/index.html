@@ -1,0 +1,1727 @@
+
+<!doctype html>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<html class="theme-next muse use-motion" lang="en">
+<head>
+  <meta charset="UTF-8"/>
+<meta http-equiv="X-UA-Compatible" content="IE=edge" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1"/>
+
+
+
+
+
+
+
+
+
+<meta http-equiv="Cache-Control" content="no-transform" />
+<meta http-equiv="Cache-Control" content="no-siteapp" />
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+  <link href="/assets/lib/fancybox/source/jquery.fancybox.css?v=2.1.5" rel="stylesheet" type="text/css" />
+
+
+
+
+  
+  
+  
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+    
+    
+    <link href="//fonts.googleapis.com/css?family=Lato:300,300italic,400,400italic,700,700italic&subset=latin,latin-ext" rel="stylesheet" type="text/css">
+  
+
+
+
+
+
+
+<link href="/assets/lib/font-awesome/css/font-awesome.min.css?v=4.6.2" rel="stylesheet" type="text/css" />
+
+<link href="/assets/css/main.css?v=5.1.1" rel="stylesheet" type="text/css" />
+
+
+  <meta name="keywords" content="OS,xv6,scheduling," />
+
+
+
+
+
+  <link rel="alternate" href="/atom.xml" title="Shutong Chen's Blog" type="application/atom+xml" />
+
+
+
+
+  <link rel="shortcut icon" type="image/x-icon" href="/assets/favicon.ico?v=5.1.1" />
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<meta name="description" content="上一篇： Part 1-xv6 调度代码讲解 TODO2： 统计RR调度情况 实现waitSch系统调用 todo2需要增加一个系统调用waitSch(int* rutime, int* retime, int* sltime)作为原来wait的扩展，除了执行原有功能以外，要将进程的运行时间、在等待队列中的时间和休眠时间输入到三个参数所代表的地址中。">
+<meta name="keywords" content="OS, xv6, scheduling">
+<meta property="og:type" content="article">
+<meta property="og:title" content="OS操作系统实验：xv6调度(RR, 优先级调度, 优先级队列） 实现和分析 Part 2- xv6 RR调度情况统计">
+<meta property="og:url" content="http://localhost:4000/lab%20report/2020/01/31/OS4-2/">
+<meta property="og:site_name" content="Shutong Chen's Blog">
+<meta property="og:description" content="上一篇： Part 1-xv6 调度代码讲解 TODO2： 统计RR调度情况 实现waitSch系统调用 todo2需要增加一个系统调用waitSch(int* rutime, int* retime, int* sltime)作为原来wait的扩展，除了执行原有功能以外，要将进程的运行时间、在等待队列中的时间和休眠时间输入到三个参数所代表的地址中。">
+<meta property="og:locale" content="en">
+<meta property="og:image" content="/assets/images/report/oslab4-2-1.png">
+<meta property="og:image" content="/assets/images/report/oslab4-2-2.png">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="OS操作系统实验：xv6调度(RR, 优先级调度, 优先级队列） 实现和分析 Part 2- xv6 RR调度情况统计">
+<meta name="twitter:description" content="上一篇： Part 1-xv6 调度代码讲解 TODO2： 统计RR调度情况 实现waitSch系统调用 todo2需要增加一个系统调用waitSch(int* rutime, int* retime, int* sltime)作为原来wait的扩展，除了执行原有功能以外，要将进程的运行时间、在等待队列中的时间和休眠时间输入到三个参数所代表的地址中。">
+<meta name="twitter:image" content="/assets/images/report/oslab4-2-1.png">
+
+
+<script type="text/javascript" id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '',
+    scheme: 'Muse',
+    sidebar: {"position":"right","display":"post","offset":12,"offset_float":0,"b2t":false,"scrollpercent":false},
+    fancybox: true,
+    motion: true,
+    duoshuo: {
+      userId: '0',
+      author: 'Author'
+    },
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    }
+  };
+</script>
+
+
+
+  <link rel="canonical" href="http://localhost:4000/"/>
+
+
+
+
+
+  <title>OS操作系统实验：xv6调度(RR, 优先级调度, 优先级队列） 实现和分析 Part 2- xv6 RR调度情况统计 | Shutong Chen's Blog</title>
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" lang="en">
+
+  
+  
+
+  <div class="container sidebar-position-right page-post-detail ">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"> <div class="site-brand-wrapper">
+  <div class="site-meta ">
+    
+
+    <div class="custom-logo-site-title">
+      <a href="/"  class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">Shutong Chen's Blog</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+      
+        <p class="site-subtitle"></p>
+      
+  </div>
+
+  <div class="site-nav-toggle">
+    <button>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+<nav class="site-nav">
+  
+
+  
+    <ul id="menu" class="menu">
+      
+        
+        
+        
+        <li class="menu-item menu-item-home">
+          <a href="/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-home"></i> <br />
+            
+            Home
+          </a>
+        </li>
+      
+        
+        
+        
+        <li class="menu-item menu-item-categories">
+          <a href="/categories/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-th"></i> <br />
+            
+            Categories
+          </a>
+        </li>
+      
+        
+        
+        
+        <li class="menu-item menu-item-archives">
+          <a href="/archives/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-archive"></i> <br />
+            
+            Archives
+          </a>
+        </li>
+      
+        
+        
+        
+        <li class="menu-item menu-item-tags">
+          <a href="/tags/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-tags"></i> <br />
+            
+            Tags
+          </a>
+        </li>
+      
+
+      
+        <li class="menu-item menu-item-search">
+          
+            <a href="javascript:;" class="popup-trigger">
+          
+            
+              <i class="menu-item-icon fa fa-search fa-fw"></i> <br />
+            
+            Search
+          </a>
+        </li>
+      
+    </ul>
+  
+
+  
+    <div class="site-search">
+      
+  <div class="popup search-popup local-search-popup">
+  <div class="local-search-header clearfix">
+    <span class="search-icon">
+      <i class="fa fa-search"></i>
+    </span>
+    <span class="popup-btn-close">
+      <i class="fa fa-times-circle"></i>
+    </span>
+    <div class="local-search-input-wrapper">
+      <input autocomplete="off"
+             placeholder="Searching..." spellcheck="false"
+             type="text" id="local-search-input">
+    </div>
+  </div>
+  <div id="local-search-result"></div>
+</div>
+
+
+
+    </div>
+  
+</nav>
+
+
+
+ </div>
+    </header>
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+<div id="posts" class="posts-expand">
+  
+  
+
+  
+
+  
+  
+  
+
+  <article class="post post-type- " itemscope itemtype="http://schema.org/Article">
+    <link itemprop="mainEntityOfPage" href="http://localhost:4000/lab%20report/2020/01/31/OS4-2/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="Shutong Chen">
+      <meta itemprop="description" content="">
+      <meta itemprop="image" content="/assets/images/avatar.jpg">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Shutong Chen's Blog">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h1 class="post-title" itemprop="name headline">
+          
+          
+            OS操作系统实验：xv6调度(RR, 优先级调度, 优先级队列） 实现和分析 Part 2- xv6 RR调度情况统计
+          
+        </h1>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">Posted on</span>
+              
+              <time title="Post created" itemprop="dateCreated datePublished" datetime="2020-01-31T00:00:00+08:00">
+                2020-01-31
+              </time>
+            
+
+            
+              <span class="post-meta-divider">|</span>
+            
+
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-check-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">Post modified</span>
+              
+              <time title="Post modified" itemprop="dateModified" datetime="">
+                
+              </time>
+            
+          </span>
+
+          
+            <span class="post-category" >
+            
+              <span class="post-meta-divider">|</span>
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">In</span>
+              
+              
+                
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/category/#/Lab%20Report" itemprop="url" rel="index">
+                    <span itemprop="name">Lab Report</span>
+                  </a>
+                </span>
+
+                
+                
+              
+            </span>
+          
+
+          
+            
+              <span class="post-comments-count">
+                <span class="post-meta-divider">|</span>
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-comment-o"></i>
+                </span>
+                <a href="/lab%20report/2020/01/31/OS4-2/#comments" itemprop="discussionUrl">
+                  <span class="post-comments-count wf-count-unit" wf-page-url="http://localhost:4000/lab%20report/2020/01/31/OS4-2/" itemprop="commentCount"></span>
+                </a>
+              </span>
+            
+          
+
+          
+          
+             <span id="/lab%20report/2020/01/31/OS4-2/" class="leancloud_visitors" data-flag-title="OS操作系统实验：xv6调度(RR, 优先级调度, 优先级队列） 实现和分析 Part 2- xv6 RR调度情况统计">
+               <span class="post-meta-divider">|</span>
+               <span class="post-meta-item-icon">
+                 <i class="fa fa-eye"></i>
+               </span>
+               
+                 <span class="post-meta-item-text">Visitors </span>
+               
+                 <span class="leancloud-visitors-count"></span>
+             </span>
+          
+
+          
+
+          
+
+          
+            
+                <div class="post-description">
+                    
+                </div>
+            
+          
+
+        </div>
+      </header>
+    
+
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        
+  
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  <p>上一篇： <a href="http://localhost:4000/lab report/2020/01/31/OS4/">Part 1-xv6 调度代码讲解</a></p>
+
+<h2 id="todo2-统计rr调度情况">TODO2： 统计RR调度情况</h2>
+
+<h3 id="实现waitsch系统调用">实现waitSch系统调用</h3>
+
+<p>todo2需要增加一个系统调用<code class="language-plaintext highlighter-rouge">waitSch(int* rutime, int* retime, int* sltime)</code>作为原来<code class="language-plaintext highlighter-rouge">wait</code>的扩展，除了执行原有功能以外，要将进程的运行时间、在等待队列中的时间和休眠时间输入到三个参数所代表的地址中。</p>
+
+<!--more-->
+
+<p>首先我们将需要维护的数据结构定义在<code class="language-plaintext highlighter-rouge">proc.h</code>中：</p>
+
+<div class="language-c highlighter-rouge"><div class="highlight"><table style="margin: 0px"><tbody><tr><td class="gutter"><pre>1<br/>2<br/>3<br/>4<br/>5<br/>6<br/>7<br/>8<br/>9<br/>10<br/>11</pre></td><td class="code"><pre class="highlight"><code><span class="k">struct</span> <span class="n">proc</span> <span class="p">{</span>
+  <span class="n">uint</span> <span class="n">sz</span><span class="p">;</span>                     <span class="c1">// Size of process memory (bytes)</span>
+  <span class="n">pde_t</span><span class="o">*</span> <span class="n">pgdir</span><span class="p">;</span>                <span class="c1">// Page table</span>
+  <span class="kt">char</span> <span class="o">*</span><span class="n">kstack</span><span class="p">;</span>                <span class="c1">// Bottom of kernel stack for this process</span>
+  <span class="p">...</span>
+  
+  <span class="n">uint</span> <span class="n">ctime</span><span class="p">;</span>                   <span class="c1">// 创建时间</span>
+  <span class="n">uint</span> <span class="n">rutime</span><span class="p">;</span>                  <span class="c1">// 处于RUNNING下的时间</span>
+  <span class="n">uint</span> <span class="n">retime</span><span class="p">;</span>                  <span class="c1">// 处于ready状态下的时间</span>
+  <span class="n">uint</span> <span class="n">sltime</span><span class="p">;</span>                  <span class="c1">// 处于Sleeping状态下的时间</span>
+<span class="p">};</span>
+</code></pre></td></tr></tbody></table></div></div>
+
+<p>然后，在<code class="language-plaintext highlighter-rouge">proc.c</code>中，也应该做出相关的修改。首先在进程被初始化的时候，应该将<code class="language-plaintext highlighter-rouge">p-&gt;ctime</code>设置为当时的时钟ticks，然后其他的几个变量应该初始化为0。考虑到第一个用户进程并不是由<code class="language-plaintext highlighter-rouge">fork</code>产生，我们将初始化放在<code class="language-plaintext highlighter-rouge">allocproc</code>中：</p>
+
+<div class="language-c highlighter-rouge"><div class="highlight"><table style="margin: 0px"><tbody><tr><td class="gutter"><pre>1<br/>2<br/>3<br/>4<br/>5<br/>6<br/>7<br/>8<br/>9<br/>10<br/>11<br/>12<br/>13<br/>14<br/>15<br/>16<br/>17<br/>18</pre></td><td class="code"><pre class="highlight"><code><span class="nl">found:</span>
+  <span class="n">p</span><span class="o">-&gt;</span><span class="n">state</span> <span class="o">=</span> <span class="n">EMBRYO</span><span class="p">;</span>
+  <span class="n">p</span><span class="o">-&gt;</span><span class="n">pid</span> <span class="o">=</span> <span class="n">nextpid</span><span class="o">++</span><span class="p">;</span>
+
+														<span class="c1">//modified here</span>
+  <span class="n">p</span><span class="o">-&gt;</span><span class="n">ctime</span> <span class="o">=</span> <span class="n">ticks</span><span class="p">;</span>   <span class="c1">//创建时间</span>
+  <span class="n">p</span><span class="o">-&gt;</span><span class="n">rutime</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>      
+  <span class="n">p</span><span class="o">-&gt;</span><span class="n">sltime</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+  <span class="n">p</span><span class="o">-&gt;</span><span class="n">retime</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+
+  <span class="n">release</span><span class="p">(</span><span class="o">&amp;</span><span class="n">ptable</span><span class="p">.</span><span class="n">lock</span><span class="p">);</span>
+
+  <span class="c1">// Allocate kernel stack.</span>
+  <span class="k">if</span><span class="p">((</span><span class="n">p</span><span class="o">-&gt;</span><span class="n">kstack</span> <span class="o">=</span> <span class="n">kalloc</span><span class="p">())</span> <span class="o">==</span> <span class="mi">0</span><span class="p">){</span>
+    <span class="n">p</span><span class="o">-&gt;</span><span class="n">state</span> <span class="o">=</span> <span class="n">UNUSED</span><span class="p">;</span>
+    <span class="n">p</span><span class="o">-&gt;</span><span class="n">ctime</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>     <span class="c1">//分配错误的时候，要恢复为0.</span>
+    <span class="k">return</span> <span class="mi">0</span><span class="p">;</span>
+  <span class="p">}</span>
+</code></pre></td></tr></tbody></table></div></div>
+
+<p>相应地，当进程结束，资源要被回收时，应该将这几个变量清空。我们不修改在<code class="language-plaintext highlighter-rouge">exit</code>中，因为此时这些进程运行的统计数据仍然要保留，直到父进程调用<code class="language-plaintext highlighter-rouge">wait</code>找到它，将它回收的时候，再把这些数据处理完清空。在<code class="language-plaintext highlighter-rouge">wait</code>中：</p>
+
+<div class="language-c highlighter-rouge"><div class="highlight"><table style="margin: 0px"><tbody><tr><td class="gutter"><pre>1<br/>2<br/>3<br/>4<br/>5<br/>6<br/>7<br/>8<br/>9<br/>10<br/>11<br/>12<br/>13<br/>14<br/>15<br/>16<br/>17<br/>18<br/>19</pre></td><td class="code"><pre class="highlight"><code> <span class="k">if</span><span class="p">(</span><span class="n">p</span><span class="o">-&gt;</span><span class="n">state</span> <span class="o">==</span> <span class="n">ZOMBIE</span><span class="p">){</span>
+        <span class="c1">// Found one.</span>
+        <span class="n">pid</span> <span class="o">=</span> <span class="n">p</span><span class="o">-&gt;</span><span class="n">pid</span><span class="p">;</span>
+        <span class="n">kfree</span><span class="p">(</span><span class="n">p</span><span class="o">-&gt;</span><span class="n">kstack</span><span class="p">);</span>
+        <span class="n">p</span><span class="o">-&gt;</span><span class="n">kstack</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+        <span class="n">freevm</span><span class="p">(</span><span class="n">p</span><span class="o">-&gt;</span><span class="n">pgdir</span><span class="p">);</span>
+        <span class="n">p</span><span class="o">-&gt;</span><span class="n">pid</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+        <span class="n">p</span><span class="o">-&gt;</span><span class="n">parent</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+        <span class="n">p</span><span class="o">-&gt;</span><span class="n">name</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+        <span class="n">p</span><span class="o">-&gt;</span><span class="n">killed</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+        												<span class="c1">// modified</span>
+        <span class="n">p</span><span class="o">-&gt;</span><span class="n">ctime</span><span class="o">=</span><span class="mi">0</span><span class="p">;</span>
+	    <span class="n">p</span><span class="o">-&gt;</span><span class="n">rutime</span><span class="o">=</span><span class="mi">0</span><span class="p">;</span>
+	    <span class="n">p</span><span class="o">-&gt;</span><span class="n">retime</span><span class="o">=</span><span class="mi">0</span><span class="p">;</span>
+	    <span class="n">p</span><span class="o">-&gt;</span><span class="n">sltime</span><span class="o">=</span><span class="mi">0</span><span class="p">;</span>
+        												<span class="c1">// end</span>
+        <span class="n">p</span><span class="o">-&gt;</span><span class="n">state</span> <span class="o">=</span> <span class="n">UNUSED</span><span class="p">;</span>
+        <span class="n">release</span><span class="p">(</span><span class="o">&amp;</span><span class="n">ptable</span><span class="p">.</span><span class="n">lock</span><span class="p">);</span>
+        <span class="k">return</span> <span class="n">pid</span><span class="p">;</span>
+</code></pre></td></tr></tbody></table></div></div>
+
+<p>接下来是实现<code class="language-plaintext highlighter-rouge">waitSch</code>，<code class="language-plaintext highlighter-rouge">waitSch</code>的大部分逻辑都和<code class="language-plaintext highlighter-rouge">wait</code>一样，不同的只是要先把<code class="language-plaintext highlighter-rouge">p-&gt;rutime</code>赋给<code class="language-plaintext highlighter-rouge">*rutime</code>，把<code class="language-plaintext highlighter-rouge">p-&gt;retime</code>赋给<code class="language-plaintext highlighter-rouge">*retime</code>, 以及<code class="language-plaintext highlighter-rouge">p-&gt;sltime</code>→<code class="language-plaintext highlighter-rouge">*sltime</code>，然后再把这些变量清空:</p>
+
+<div class="language-c highlighter-rouge"><div class="highlight"><table style="margin: 0px"><tbody><tr><td class="gutter"><pre>1<br/>2<br/>3<br/>4<br/>5<br/>6<br/>7<br/>8<br/>9<br/>10<br/>11<br/>12<br/>13<br/>14<br/>15<br/>16<br/>17<br/>18<br/>19<br/>20<br/>21<br/>22<br/>23<br/>24<br/>25<br/>26<br/>27<br/>28<br/>29<br/>30<br/>31<br/>32<br/>33<br/>34<br/>35<br/>36<br/>37<br/>38<br/>39<br/>40<br/>41<br/>42<br/>43<br/>44<br/>45<br/>46<br/>47<br/>48<br/>49<br/>50<br/>51</pre></td><td class="code"><pre class="highlight"><code><span class="kt">int</span> 
+<span class="nf">waitSH</span><span class="p">(</span><span class="kt">int</span><span class="o">*</span> <span class="n">rutime</span><span class="p">,</span> <span class="kt">int</span><span class="o">*</span> <span class="n">retime</span><span class="p">,</span> <span class="kt">int</span><span class="o">*</span> <span class="n">sltime</span><span class="p">)</span>
+<span class="p">{</span>
+  <span class="k">struct</span> <span class="n">proc</span> <span class="o">*</span><span class="n">p</span><span class="p">;</span>
+  <span class="kt">int</span> <span class="n">havekids</span><span class="p">,</span> <span class="n">pid</span><span class="p">;</span>
+  <span class="k">struct</span> <span class="n">proc</span> <span class="o">*</span><span class="n">curproc</span> <span class="o">=</span> <span class="n">myproc</span><span class="p">();</span>
+  
+  <span class="n">acquire</span><span class="p">(</span><span class="o">&amp;</span><span class="n">ptable</span><span class="p">.</span><span class="n">lock</span><span class="p">);</span>
+  <span class="k">for</span><span class="p">(;;){</span>
+    <span class="c1">// Scan through table looking for exited children.</span>
+    <span class="n">havekids</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+    <span class="k">for</span><span class="p">(</span><span class="n">p</span> <span class="o">=</span> <span class="n">ptable</span><span class="p">.</span><span class="n">proc</span><span class="p">;</span> <span class="n">p</span> <span class="o">&lt;</span> <span class="o">&amp;</span><span class="n">ptable</span><span class="p">.</span><span class="n">proc</span><span class="p">[</span><span class="n">NPROC</span><span class="p">];</span> <span class="n">p</span><span class="o">++</span><span class="p">){</span>
+      <span class="k">if</span><span class="p">(</span><span class="n">p</span><span class="o">-&gt;</span><span class="n">parent</span> <span class="o">!=</span> <span class="n">curproc</span><span class="p">)</span>
+        <span class="k">continue</span><span class="p">;</span>
+      <span class="n">havekids</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span>
+      <span class="k">if</span><span class="p">(</span><span class="n">p</span><span class="o">-&gt;</span><span class="n">state</span> <span class="o">==</span> <span class="n">ZOMBIE</span><span class="p">){</span>
+        <span class="c1">// Found one.</span>
+        <span class="n">pid</span> <span class="o">=</span> <span class="n">p</span><span class="o">-&gt;</span><span class="n">pid</span><span class="p">;</span>
+        <span class="n">kfree</span><span class="p">(</span><span class="n">p</span><span class="o">-&gt;</span><span class="n">kstack</span><span class="p">);</span>
+        <span class="n">p</span><span class="o">-&gt;</span><span class="n">kstack</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+        <span class="n">freevm</span><span class="p">(</span><span class="n">p</span><span class="o">-&gt;</span><span class="n">pgdir</span><span class="p">);</span>
+        <span class="n">p</span><span class="o">-&gt;</span><span class="n">pid</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+        <span class="n">p</span><span class="o">-&gt;</span><span class="n">parent</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+        <span class="n">p</span><span class="o">-&gt;</span><span class="n">name</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+        <span class="n">p</span><span class="o">-&gt;</span><span class="n">killed</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+        																<span class="c1">// modified</span>
+	    <span class="o">*</span><span class="n">rutime</span> <span class="o">=</span> <span class="n">p</span><span class="o">-&gt;</span><span class="n">rutime</span><span class="p">;</span>
+	    <span class="o">*</span><span class="n">sltime</span> <span class="o">=</span> <span class="n">p</span><span class="o">-&gt;</span><span class="n">sltime</span><span class="p">;</span>
+	    <span class="o">*</span><span class="n">retime</span> <span class="o">=</span> <span class="n">p</span><span class="o">-&gt;</span><span class="n">retime</span><span class="p">;</span>
+	    <span class="n">p</span><span class="o">-&gt;</span><span class="n">ctime</span><span class="o">=</span><span class="mi">0</span><span class="p">;</span>
+	    <span class="n">p</span><span class="o">-&gt;</span><span class="n">rutime</span><span class="o">=</span><span class="mi">0</span><span class="p">;</span>
+	    <span class="n">p</span><span class="o">-&gt;</span><span class="n">retime</span><span class="o">=</span><span class="mi">0</span><span class="p">;</span>
+	    <span class="n">p</span><span class="o">-&gt;</span><span class="n">sltime</span><span class="o">=</span><span class="mi">0</span><span class="p">;</span>
+        																<span class="c1">// end</span>
+        <span class="n">p</span><span class="o">-&gt;</span><span class="n">state</span> <span class="o">=</span> <span class="n">UNUSED</span><span class="p">;</span>
+        <span class="n">release</span><span class="p">(</span><span class="o">&amp;</span><span class="n">ptable</span><span class="p">.</span><span class="n">lock</span><span class="p">);</span>
+        <span class="k">return</span> <span class="n">pid</span><span class="p">;</span>
+      <span class="p">}</span>
+    <span class="p">}</span>
+
+    <span class="c1">// No point waiting if we don't have any children.</span>
+    <span class="k">if</span><span class="p">(</span><span class="o">!</span><span class="n">havekids</span> <span class="o">||</span> <span class="n">curproc</span><span class="o">-&gt;</span><span class="n">killed</span><span class="p">){</span>
+      <span class="n">release</span><span class="p">(</span><span class="o">&amp;</span><span class="n">ptable</span><span class="p">.</span><span class="n">lock</span><span class="p">);</span>
+      <span class="k">return</span> <span class="o">-</span><span class="mi">1</span><span class="p">;</span>
+    <span class="p">}</span>
+
+    <span class="c1">// Wait for children to exit.  (See wakeup1 call in proc_exit.)</span>
+    <span class="n">sleep</span><span class="p">(</span><span class="n">curproc</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">ptable</span><span class="p">.</span><span class="n">lock</span><span class="p">);</span>  <span class="c1">//DOC: wait-sleep</span>
+  <span class="p">}</span>
+
+<span class="p">}</span> 
+</code></pre></td></tr></tbody></table></div></div>
+
+<p>现在的问题是，如何动态地维护进程的运行时间、等待时间和休眠时间呢？</p>
+
+<p>首先一个直观的思路是，在每一次进程状态变化的时候，例如由A→B，记录下这次状态转换的时间作为B状态的开始时间$t_{0}$, 等下一次再从B→C的时候，B的持续时间就加上这个时刻减去$t_{0}$. 但是这种方法实现起来非常复杂，首先进程状态转换可能在很多种情况下发生，每一次转换时，都要判断旧的状态和新的状态是什么，然后更新旧状态的持续时间，保存新状态的开始时间。这样代码会变得冗长而且容易出错，还需要为进程维护两倍的变量（对每一种状态，例如RUNNING, 至少需要维护最近一次RUNNING状态开始的时刻，以及累计运行时间）。</p>
+
+<p>另一种思路是，在每一次收到时钟中断时，判断进程处于何种状态，为这种状态的持续时间加一。这样的计算是一种很粗糙的近似。这样计算，是假设进程会将这种状态维持一个时间片，在中间不发生状态的变换，并假设这种状态大概在时钟中断发生时开始。然而，在两个时钟中断之间，进程是很有可能调用<code class="language-plaintext highlighter-rouge">sleep</code>或<code class="language-plaintext highlighter-rouge">wait</code>进行休眠的，也有可能在下一个时钟中断到来之前，调度器就已经调度了另一个进程并将该进程唤醒，状态变为RUNNABLE，这样，中间的sleep阶段就没有被我们的计算捕捉到。不过因为进程一般是运行和等待的时间占大多数，sleep占比很少，运行和等待之间的切换又一般是通过时钟中断引发的<code class="language-plaintext highlighter-rouge">yield</code>, 所以这种近似还是可以接受的。</p>
+
+<h3 id="xv6-的时钟机制">xv6 的时钟机制</h3>
+
+<p>xv6的时钟在<code class="language-plaintext highlighter-rouge">timer.c</code>中实现，每过100ms，硬件就会产生一个时钟中断。每个cpu都可以独立地接收时钟中断，并陷入中断处理。</p>
+
+<p>在<code class="language-plaintext highlighter-rouge">trap.c</code>中定义了一个uint类型的变量<code class="language-plaintext highlighter-rouge">ticks</code>，每一次这个变量加一，代表系统的时钟往前走了一步。两个cpu收到时钟中断后，先后进入中断处理程序，为了让系统的时钟(ticks)能够真正在每次<code class="language-plaintext highlighter-rouge">timer</code>产生时钟中断的时候自增一，只在某一个固定的cpu收到中断时让<code class="language-plaintext highlighter-rouge">ticks++</code>, 因此xv6中每一次CPU0收到一个时钟中断，<code class="language-plaintext highlighter-rouge">ticks</code>就自增1：</p>
+
+<div class="language-c highlighter-rouge"><div class="highlight"><table style="margin: 0px"><tbody><tr><td class="gutter"><pre>1<br/>2<br/>3<br/>4<br/>5<br/>6<br/>7<br/>8<br/>9<br/>10<br/>11</pre></td><td class="code"><pre class="highlight"><code><span class="k">switch</span><span class="p">(</span><span class="n">tf</span><span class="o">-&gt;</span><span class="n">trapno</span><span class="p">){</span>
+  <span class="k">case</span> <span class="n">T_IRQ0</span> <span class="o">+</span> <span class="n">IRQ_TIMER</span><span class="p">:</span>     <span class="c1">//收到了时钟中断</span>
+    <span class="k">if</span><span class="p">(</span><span class="n">cpuid</span><span class="p">()</span> <span class="o">==</span> <span class="mi">0</span><span class="p">){</span>          <span class="c1">//如果是cpu0收到了这个时钟中断，才将tick增加1；这样对于不同的cpu，时钟都是保持同步的，所有的cpu都会共用这个tick变量。</span>
+      <span class="n">acquire</span><span class="p">(</span><span class="o">&amp;</span><span class="n">tickslock</span><span class="p">);</span>       
+      <span class="n">ticks</span><span class="o">++</span><span class="p">;</span>
+      <span class="n">wakeup</span><span class="p">(</span><span class="o">&amp;</span><span class="n">ticks</span><span class="p">);</span>
+      <span class="n">release</span><span class="p">(</span><span class="o">&amp;</span><span class="n">tickslock</span><span class="p">);</span>
+    <span class="p">}</span>
+    <span class="n">lapiceoi</span><span class="p">();</span>
+    <span class="n">cprintf</span><span class="p">(</span><span class="s">"ashajh,time: %d, cpu: %d</span><span class="se">\n</span><span class="s">"</span><span class="p">,</span><span class="n">ticks</span><span class="p">,</span> <span class="n">cpuid</span><span class="p">());</span>
+    <span class="k">break</span><span class="p">;</span>
+</code></pre></td></tr></tbody></table></div></div>
+
+<p>编译这段代码，输出是：
+<img src="/assets/images/report/oslab4-2-1.png" alt="" /></p>
+
+<p>这段输出中，每一次cpu id 为0时，对应的时钟比上一次printf增加一，而对于cpu1则不一定是这样。</p>
+
+<p>如果我们要在每次时钟中断时判断进程的状态，也有两种思路。</p>
+
+<p>第一个是，在时钟中断的时候，调用<code class="language-plaintext highlighter-rouge">myproc</code>先判断cpu上是否有进程在运行，如果有，则判断它的状态并更新变量。这种思路首先因为进程会在两个cpu上调度，而在cpu1上调度时，两次中断之间<code class="language-plaintext highlighter-rouge">ticks</code>不一定有增加，所以要增加一个<code class="language-plaintext highlighter-rouge">lasttick</code>保存上一次中断时<code class="language-plaintext highlighter-rouge">ticks</code>的值，如果这个值有改变，才会进行判断。但即使是添加了这个逻辑，这种方法也是错误的，因为如果<code class="language-plaintext highlighter-rouge">myproc()</code>能返回进程的PCB， 进程一定是处于<code class="language-plaintext highlighter-rouge">RUNNING</code>状态（否则它就不会被cpu调度了），这样我们无法知道进程何时在休眠或等待。</p>
+
+<p>第二个思路是，在<code class="language-plaintext highlighter-rouge">ticks++</code>的时候，遍历整一个ptable表，对每个进程判断它是在何种状态，然后给变量+1.这样便可实现上面那种近似的算法。 在<code class="language-plaintext highlighter-rouge">trap.c</code>中作以下修改：</p>
+
+<div class="language-c highlighter-rouge"><div class="highlight"><table style="margin: 0px"><tbody><tr><td class="gutter"><pre>1<br/>2<br/>3<br/>4<br/>5<br/>6<br/>7<br/>8<br/>9<br/>10<br/>11<br/>12</pre></td><td class="code"><pre class="highlight"><code>  <span class="k">switch</span><span class="p">(</span><span class="n">tf</span><span class="o">-&gt;</span><span class="n">trapno</span><span class="p">){</span>
+  <span class="k">case</span> <span class="n">T_IRQ0</span> <span class="o">+</span> <span class="n">IRQ_TIMER</span><span class="p">:</span>
+    <span class="k">if</span><span class="p">(</span><span class="n">cpuid</span><span class="p">()</span> <span class="o">==</span> <span class="mi">0</span><span class="p">){</span>
+      <span class="n">acquire</span><span class="p">(</span><span class="o">&amp;</span><span class="n">tickslock</span><span class="p">);</span>
+      <span class="n">ticks</span><span class="o">++</span><span class="p">;</span>
+      									<span class="c1">//modified</span>
+      <span class="n">update</span><span class="p">();</span>                         <span class="c1">//每一次ticks++时，更新进程状态变量</span>
+      <span class="n">wakeup</span><span class="p">(</span><span class="o">&amp;</span><span class="n">ticks</span><span class="p">);</span>
+      <span class="n">release</span><span class="p">(</span><span class="o">&amp;</span><span class="n">tickslock</span><span class="p">);</span>
+    <span class="p">}</span>
+    <span class="n">lapiceoi</span><span class="p">();</span>
+    <span class="k">break</span><span class="p">;</span>
+</code></pre></td></tr></tbody></table></div></div>
+
+<p>其中，判断进程状态并更新变量的函数在<code class="language-plaintext highlighter-rouge">proc.c</code>中实现：</p>
+
+<div class="language-c highlighter-rouge"><div class="highlight"><table style="margin: 0px"><tbody><tr><td class="gutter"><pre>1<br/>2<br/>3<br/>4<br/>5<br/>6<br/>7<br/>8<br/>9<br/>10<br/>11<br/>12<br/>13<br/>14<br/>15<br/>16<br/>17<br/>18<br/>19<br/>20<br/>21</pre></td><td class="code"><pre class="highlight"><code><span class="kt">void</span> 
+<span class="nf">update</span><span class="p">()</span>
+<span class="p">{</span>
+    <span class="k">struct</span> <span class="n">proc</span> <span class="o">*</span><span class="n">p</span><span class="p">;</span>
+    <span class="n">acquire</span><span class="p">(</span><span class="o">&amp;</span><span class="n">ptable</span><span class="p">.</span><span class="n">lock</span><span class="p">);</span>    <span class="c1">//对进程变量进行修改，要先获得ptable锁。</span>
+    <span class="k">for</span><span class="p">(</span><span class="n">p</span> <span class="o">=</span> <span class="n">ptable</span><span class="p">.</span><span class="n">proc</span><span class="p">;</span> <span class="n">p</span> <span class="o">&lt;</span> <span class="o">&amp;</span><span class="n">ptable</span><span class="p">.</span><span class="n">proc</span><span class="p">[</span><span class="n">NPROC</span><span class="p">];</span> <span class="n">p</span><span class="o">++</span><span class="p">){</span>
+    <span class="k">switch</span><span class="p">(</span><span class="n">p</span><span class="o">-&gt;</span><span class="n">state</span><span class="p">)</span> <span class="p">{</span>   <span class="c1">//遍历整个表，判断进程状态</span>
+      <span class="k">case</span> <span class="n">RUNNING</span><span class="p">:</span>      <span class="c1">//运行中</span>
+        <span class="n">p</span><span class="o">-&gt;</span><span class="n">rutime</span><span class="o">++</span><span class="p">;</span>     <span class="c1">//则运行时间增加一个时间片</span>
+        <span class="k">break</span><span class="p">;</span>
+      <span class="k">case</span> <span class="n">SLEEPING</span><span class="p">:</span>    <span class="c1">//休眠中</span>
+        <span class="n">p</span><span class="o">-&gt;</span><span class="n">sltime</span><span class="o">++</span><span class="p">;</span>     <span class="c1">//休眠时间增加一个时间片</span>
+        <span class="k">break</span><span class="p">;</span>
+      <span class="k">case</span> <span class="n">RUNNABLE</span><span class="p">:</span>    <span class="c1">//等待中</span>
+        <span class="n">p</span><span class="o">-&gt;</span><span class="n">retime</span><span class="o">++</span><span class="p">;</span>    <span class="c1">//等待时间增加一个时间片</span>
+        <span class="k">break</span><span class="p">;</span>
+      <span class="nl">default:</span> <span class="p">;</span>    <span class="c1">// default，有ZOMBIE\EMBRYO\UNUSED，这些状态我们不关心</span>
+    <span class="p">}</span>
+  <span class="p">}</span>
+  <span class="n">release</span><span class="p">(</span><span class="o">&amp;</span><span class="n">ptable</span><span class="p">.</span><span class="n">lock</span><span class="p">);</span>  <span class="c1">//释放锁</span>
+<span class="p">}</span>    
+</code></pre></td></tr></tbody></table></div></div>
+
+<p>我们按照上次实验的步骤将<code class="language-plaintext highlighter-rouge">waitSch</code>包装成系统调用。 实现过程中比较重要的是，xv6<code class="language-plaintext highlighter-rouge">syscall.c</code>中系统调用函数的统一格式是返回值<code class="language-plaintext highlighter-rouge">int</code>, 不允许带参数。如果需要加入参数，则参数会被压入栈中，通过<code class="language-plaintext highlighter-rouge">argint</code>和<code class="language-plaintext highlighter-rouge">argptr</code>从栈上取出参数进行解析。在<code class="language-plaintext highlighter-rouge">sysproc.c</code>中包装<code class="language-plaintext highlighter-rouge">waitSch</code>如下：</p>
+
+<div class="language-c highlighter-rouge"><div class="highlight"><table style="margin: 0px"><tbody><tr><td class="gutter"><pre>1<br/>2<br/>3<br/>4<br/>5<br/>6<br/>7<br/>8<br/>9<br/>10<br/>11<br/>12<br/>13<br/>14<br/>15<br/>16<br/>17<br/>18<br/>19</pre></td><td class="code"><pre class="highlight"><code><span class="kt">int</span>
+<span class="nf">sys_waitsch</span><span class="p">(</span><span class="kt">void</span><span class="p">)</span>
+<span class="p">{</span>
+    <span class="kt">int</span> <span class="o">*</span><span class="n">rutime</span><span class="p">;</span>
+    <span class="kt">int</span> <span class="o">*</span><span class="n">retime</span><span class="p">;</span> 
+    <span class="kt">int</span> <span class="o">*</span><span class="n">sltime</span><span class="p">;</span>
+    <span class="kt">int</span> <span class="n">pid</span><span class="p">;</span>
+    <span class="n">rutime</span><span class="o">=</span><span class="n">retime</span><span class="o">=</span><span class="n">sltime</span><span class="o">=</span><span class="mi">0</span><span class="p">;</span>
+    <span class="k">if</span><span class="p">(</span><span class="n">argptr</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="p">(</span><span class="kt">char</span><span class="o">**</span><span class="p">)</span><span class="o">&amp;</span><span class="n">rutime</span><span class="p">,</span> <span class="k">sizeof</span><span class="p">(</span><span class="kt">int</span><span class="p">))</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="k">return</span> <span class="o">-</span><span class="mi">1</span><span class="p">;</span>
+    <span class="k">if</span><span class="p">(</span><span class="n">argptr</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="p">(</span><span class="kt">char</span><span class="o">**</span><span class="p">)</span><span class="o">&amp;</span><span class="n">retime</span><span class="p">,</span> <span class="k">sizeof</span><span class="p">(</span><span class="kt">int</span><span class="p">))</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="k">return</span> <span class="o">-</span><span class="mi">1</span><span class="p">;</span>
+    <span class="k">if</span><span class="p">(</span><span class="n">argptr</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="p">(</span><span class="kt">char</span><span class="o">**</span><span class="p">)</span><span class="o">&amp;</span><span class="n">sltime</span><span class="p">,</span> <span class="k">sizeof</span><span class="p">(</span><span class="kt">int</span><span class="p">))</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="k">return</span> <span class="o">-</span><span class="mi">1</span><span class="p">;</span>
+    <span class="n">pid</span> <span class="o">=</span> <span class="n">waitSH</span><span class="p">(</span><span class="n">rutime</span><span class="p">,</span> <span class="n">retime</span><span class="p">,</span> <span class="n">sltime</span><span class="p">);</span>
+    <span class="k">if</span><span class="p">(</span><span class="n">pid</span><span class="o">!=-</span><span class="mi">1</span><span class="p">)</span>    <span class="c1">//如果有子进程退出，打印出它的pid，运行时间、等待时间和休眠时间。</span>
+        <span class="n">cprintf</span><span class="p">(</span><span class="s">"pid: %d, runtime:%d, ready time: %d, sleep time %d</span><span class="se">\n</span><span class="s">"</span><span class="p">,</span> <span class="n">pid</span><span class="p">,</span> <span class="o">*</span><span class="n">rutime</span><span class="p">,</span> <span class="o">*</span><span class="n">retime</span><span class="p">,</span> <span class="o">*</span><span class="n">sltime</span><span class="p">);</span>
+    <span class="k">return</span> <span class="n">pid</span><span class="p">;</span>
+<span class="p">}</span> 
+</code></pre></td></tr></tbody></table></div></div>
+
+<p>在<code class="language-plaintext highlighter-rouge">syscall.h</code>以及系统调用表中，为<code class="language-plaintext highlighter-rouge">waitSch</code>增加系统调用号，并在<code class="language-plaintext highlighter-rouge">user.h</code>中定义接口。<code class="language-plaintext highlighter-rouge">waitSch</code>的实现已经完成。</p>
+
+<h3 id="编写rrstac-统计rr调度情况">编写RRsta.c 统计RR调度情况</h3>
+
+<p>编写RRsta.c， main函数接收一个命令行参数n, fork n个子进程进行相同的大规模计算，然后父进程调用<code class="language-plaintext highlighter-rouge">waitSch</code>，等待每个子进程的结束，并输出每个子进程的运行时间、等待时间和休眠时间。最后统计n个进程在RR（Round Robin）调度下的平均轮转时间。</p>
+
+<div class="language-c highlighter-rouge"><div class="highlight"><table style="margin: 0px"><tbody><tr><td class="gutter"><pre>1<br/>2<br/>3<br/>4<br/>5<br/>6<br/>7<br/>8<br/>9<br/>10<br/>11<br/>12<br/>13<br/>14<br/>15<br/>16<br/>17<br/>18<br/>19<br/>20<br/>21<br/>22<br/>23<br/>24<br/>25<br/>26<br/>27<br/>28<br/>29<br/>30<br/>31<br/>32<br/>33<br/>34<br/>35<br/>36<br/>37<br/>38<br/>39<br/>40<br/>41<br/>42<br/>43<br/>44<br/>45<br/>46<br/>47</pre></td><td class="code"><pre class="highlight"><code><span class="cp">#include "param.h"
+#include "types.h"
+#include "stat.h"
+#include "user.h"
+#include "fs.h"
+#include "fcntl.h"
+#include "syscall.h"
+#include "traps.h"
+#include "memlayout.h"
+</span>
+<span class="kt">int</span> <span class="n">stdout</span><span class="o">=</span><span class="mi">1</span><span class="p">;</span>
+<span class="kt">int</span> <span class="nf">main</span><span class="p">(</span><span class="kt">int</span> <span class="n">argc</span><span class="p">,</span> <span class="kt">char</span><span class="o">*</span> <span class="n">argv</span><span class="p">[])</span>
+<span class="p">{</span>
+    <span class="kt">int</span> <span class="n">forknumber</span><span class="o">=</span><span class="n">atoi</span><span class="p">(</span><span class="n">argv</span><span class="p">[</span><span class="mi">1</span><span class="p">]);</span>   <span class="c1">//命令行参数，为fork 子进程的个数</span>
+    <span class="kt">int</span> <span class="n">status</span><span class="p">;</span>
+    <span class="k">for</span><span class="p">(</span><span class="kt">int</span> <span class="n">i</span><span class="o">=</span><span class="mi">0</span><span class="p">;</span><span class="n">i</span><span class="o">&lt;</span><span class="n">forknumber</span><span class="p">;</span><span class="n">i</span><span class="o">++</span><span class="p">)</span>    
+    <span class="p">{</span>
+        <span class="n">status</span><span class="o">=</span><span class="n">fork</span><span class="p">();</span>
+        <span class="k">if</span><span class="p">(</span><span class="n">status</span><span class="o">==</span><span class="mi">0</span><span class="p">){</span>    <span class="c1">//在子进程内status=pid=0</span>
+            <span class="k">for</span><span class="p">(</span><span class="kt">int</span> <span class="n">count</span><span class="o">=</span><span class="mi">0</span><span class="p">;</span><span class="n">count</span><span class="o">&lt;</span><span class="mi">40</span><span class="p">;</span> <span class="n">count</span><span class="o">++</span><span class="p">){</span>  <span class="c1">//执行相同的运算，主要是大规模乘、除法计算。</span>
+                <span class="n">printf</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="s">" "</span><span class="p">);</span>
+                <span class="k">for</span><span class="p">(</span><span class="kt">int</span> <span class="n">k</span><span class="o">=</span><span class="mi">0</span><span class="p">;</span><span class="n">k</span><span class="o">&lt;</span><span class="mi">1000000</span><span class="p">;</span><span class="n">k</span><span class="o">++</span><span class="p">){</span>
+                    <span class="kt">int</span> <span class="n">result</span><span class="o">=</span><span class="mi">0</span><span class="p">;</span>
+                    <span class="k">for</span><span class="p">(</span> <span class="kt">int</span> <span class="n">j</span><span class="o">=</span><span class="mi">0</span><span class="p">;</span> <span class="n">j</span><span class="o">&lt;</span><span class="mi">5000</span><span class="p">;</span> <span class="n">j</span><span class="o">++</span><span class="p">){</span>
+                        <span class="n">result</span><span class="o">+=</span><span class="n">j</span><span class="o">*</span><span class="n">j</span><span class="p">;</span>
+                        <span class="n">result</span><span class="o">-=</span><span class="n">j</span><span class="o">*</span><span class="n">j</span><span class="p">;</span>
+                        <span class="n">result</span><span class="o">=</span> <span class="n">result</span><span class="o">/</span><span class="n">j</span><span class="p">;</span>
+                        <span class="n">result</span><span class="o">=</span><span class="n">result</span><span class="o">*</span><span class="n">j</span><span class="p">;</span>
+                        <span class="n">result</span> <span class="o">=</span> <span class="n">result</span><span class="o">+</span><span class="n">result</span><span class="o">/</span><span class="n">j</span><span class="p">;</span>
+                    <span class="p">}</span>
+		    	<span class="p">}</span>
+            <span class="p">}</span>
+            
+            <span class="n">exit</span><span class="p">();</span>   <span class="c1">//一定要注意exit，否则子进程也会执行上面的fork循环。</span>
+        <span class="p">}</span>
+    <span class="p">}</span>
+    <span class="kt">int</span> <span class="n">rutime</span><span class="p">;</span>   <span class="c1">//运行时间</span>
+    <span class="kt">int</span> <span class="n">retime</span><span class="p">;</span>
+    <span class="kt">int</span> <span class="n">sltime</span><span class="p">;</span>
+    <span class="kt">int</span> <span class="n">pid</span><span class="p">;</span>      <span class="c1">//子进程pid</span>
+    <span class="kt">int</span> <span class="n">sum</span><span class="o">=</span><span class="mi">0</span><span class="p">;</span> <span class="c1">//周转时间总和</span>
+    <span class="k">while</span><span class="p">((</span><span class="n">pid</span> <span class="o">=</span> <span class="n">waitSch</span><span class="p">(</span><span class="o">&amp;</span><span class="n">rutime</span><span class="p">,</span><span class="o">&amp;</span><span class="n">retime</span><span class="p">,</span><span class="o">&amp;</span><span class="n">sltime</span><span class="p">))</span><span class="o">!=-</span><span class="mi">1</span><span class="p">){</span>
+        <span class="n">sum</span> <span class="o">+=</span> <span class="n">rutime</span><span class="o">+</span><span class="n">retime</span><span class="o">+</span><span class="n">sltime</span><span class="p">;</span>
+    <span class="p">}</span>
+    <span class="n">printf</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="s">"average turn-around time of %d process is %d.</span><span class="se">\n</span><span class="s">"</span><span class="p">,</span> <span class="n">forknumber</span><span class="p">,</span> <span class="n">sum</span><span class="o">/</span><span class="n">forknumber</span><span class="p">);</span>
+    <span class="n">exit</span><span class="p">();</span>
+<span class="p">}</span>
+</code></pre></td></tr></tbody></table></div></div>
+
+<p>将<code class="language-plaintext highlighter-rouge">RRsta.c</code>编译到<code class="language-plaintext highlighter-rouge">qemu</code>中，在shell中运行</p>
+
+<div class="language-shell highlighter-rouge"><div class="highlight"><table style="margin: 0px"><tbody><tr><td class="gutter"><pre>1<br/>2<br/>3<br/>4</pre></td><td class="code"><pre class="highlight"><code>make clean
+make
+make qemu
+<span class="nv">$ </span>RRsta 10
+</code></pre></td></tr></tbody></table></div></div>
+
+<p>得到输出：</p>
+
+<p><img src="/assets/images/report/oslab4-2-2.png" alt="image-20191115012022441" /></p>
+
+<p>（实际上，手动计算平均周转时间的话会得到5.8， 但是xv6的<code class="language-plaintext highlighter-rouge">printf</code>并没有使用C的标准输出库，不支持输出浮点数，只能将小数省去了。</p>
+
+<hr />
+
+<p><strong>下一篇： <a href="http://localhost:4000/lab report/2020/01/31/OS4-3/">Part 3： 优先级和动态多及反馈队列的实现、调度算法比较</a></strong></p>
+
+
+
+      
+    </div>
+
+    <div>
+      
+        
+
+      
+    </div>
+
+    <div>
+      
+        
+
+      
+    </div>
+
+    <div>
+      
+        
+
+      
+    </div>
+
+    <footer class="post-footer">
+      
+        <div class="post-tags">
+          
+            
+            <a href="/tag/#/OS" rel="tag"># OS</a>
+          
+            
+            <a href="/tag/#/xv6" rel="tag"># xv6</a>
+          
+            
+            <a href="/tag/#/scheduling" rel="tag"># scheduling</a>
+          
+        </div>
+      
+
+      
+      
+      
+      
+      
+
+      
+      
+        <div class="post-nav" id="post-nav-id">
+          <div class="post-nav-next post-nav-item">
+            
+              <a href="/lab%20report/2020/01/31/OS4-3/" rel="next" title="OS操作系统实验：xv6调度(RR, 优先级调度, 优先级队列） 实现和分析 Part 3- xv6 优先级调度算法实现">
+                <i class="fa fa-chevron-left"></i> OS操作系统实验：xv6调度(RR, 优先级调度, 优先级队列） 实现和分析 Part 3- xv6 优先级调度算法实现
+              </a>
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+              <a href="/paper%20reading/2020/01/30/NPA/" rel="prev" title="[Notes]NPA:Neural News Recommendation with Personalized Attention">
+                [Notes]NPA:Neural News Recommendation with Personalized Attention <i class="fa fa-chevron-right"></i>
+              </a>
+            
+          </div>
+        </div>
+      
+      
+
+      
+    </footer>
+  </article>
+
+  <div class="post-spread">
+    
+  </div>
+</div>
+
+
+          </div>
+          
+
+
+          
+  <div class="comments" id="comments">
+    
+      <div class="wildfire_thread"></div>
+    
+  </div>
+
+
+        </div>
+        
+          
+
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    <div class="sidebar-inner">
+
+      
+        
+        
+        
+
+
+
+
+
+
+
+      
+
+      
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap" >
+            Table of Contents
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview">
+            Overview
+          </li>
+        </ul>
+      
+
+      <section class="site-overview sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+          <img class="site-author-image" itemprop="image"
+               src="/assets/images/avatar.jpg"
+               alt="Shutong Chen" />
+          <p class="site-author-name" itemprop="name">Shutong Chen</p>
+           
+              <p class="site-description motion-element" itemprop="description">CS student in junior year, Fudan University</p>
+          
+        </div>
+        <nav class="site-state motion-element">
+
+          
+            <div class="site-state-item site-state-posts">
+              <a href="/archives/">
+                <span class="site-state-item-count">4</span>
+                <span class="site-state-item-name">posts</span>
+              </a>
+            </div>
+          
+
+          
+            
+            
+            <div class="site-state-item site-state-categories">
+              <a href="/categories/">
+                <span class="site-state-item-count">2</span>
+                <span class="site-state-item-name">categories</span>
+              </a>
+            </div>
+          
+
+          
+            
+            
+            <div class="site-state-item site-state-tags">
+              <a href="/tags/">
+                <span class="site-state-item-count">5</span>
+                <span class="site-state-item-name">tags</span>
+              </a>
+            </div>
+          
+
+        </nav>
+
+        
+        
+        
+          <div class="feed-link motion-element">
+            <a href="/atom.xml" rel="alternate">
+              <i class="fa fa-rss"></i>
+              RSS
+            </a>
+          </div>
+        
+
+        <div class="links-of-author motion-element">
+          
+            
+              
+              
+              <span class="links-of-author-item">
+                <a href="https://github.com/sillywutong" target="_blank" title="GitHub">
+                  
+                    <i class="fa fa-fw fa-github"></i>
+                  
+                  GitHub
+                </a>
+              </span>
+            
+              
+              
+              <span class="links-of-author-item">
+                <a href="https://weibo.com/sillywutong" target="_blank" title="微博">
+                  
+                    <i class="fa fa-fw fa-globe"></i>
+                  
+                  微博
+                </a>
+              </span>
+            
+          
+        </div>
+
+        
+        
+
+        
+        
+
+        
+
+
+      </section>
+
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+            
+            
+            
+
+
+
+
+
+
+
+
+            
+              <div class="post-toc-content">
+    <ol class=nav>
+      <li class="nav-item nav-level-2"> <a class="nav-link" href="#todo2-统计rr调度情况"> <span class="nav-number">1</span> <span class="nav-text">TODO2： 统计RR调度情况</span> </a> <ol class="nav-child"> <li class="nav-item nav-level-3"> <a class="nav-link" href="#实现waitsch系统调用"> <span class="nav-number">1.1</span> <span class="nav-text">实现waitSch系统调用</span> </a> </li> <li class="nav-item nav-level-3"> <a class="nav-link" href="#xv6-的时钟机制"> <span class="nav-number">1.2</span> <span class="nav-text">xv6 的时钟机制</span> </a> </li> <li class="nav-item nav-level-3"> <a class="nav-link" href="#编写rrstac-统计rr调度情况"> <span class="nav-number">1.3</span> <span class="nav-text">编写RRsta.c 统计RR调度情况</span> </a> </li> </ol> </li>
+    </ol>
+  </div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
+      
+
+      
+
+    </div>
+  </aside>
+
+        
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright" >
+  
+  
+  &copy; 
+  <span itemprop="copyrightYear">2020</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Shutong Chen</span>
+</div>
+
+
+<div class="powered-by">
+  Powered by <a class="theme-link" href="https://jekyllrb.com">Jekyll</a>
+</div>
+
+<div class="theme-info">
+  Theme -
+  <a class="theme-link" href="https://github.com/simpleyyt/jekyll-theme-next">
+    NexT.Muse
+  </a>
+</div>
+
+
+        
+
+        
+      </div>
+    </footer>
+
+    
+      <div class="back-to-top">
+        <i class="fa fa-arrow-up"></i>
+        
+      </div>
+    
+
+  </div>
+
+  
+
+<script type="text/javascript">
+  if (Object.prototype.toString.call(window.Promise) !== '[object Function]') {
+    window.Promise = null;
+  }
+</script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+   
+  
+  
+  
+  
+  
+  <script type="text/javascript" src="/assets/lib/jquery/index.js?v=2.1.3"></script>
+
+  
+  
+  
+  
+  
+  <script type="text/javascript" src="/assets/lib/fastclick/lib/fastclick.min.js?v=1.0.6"></script>
+
+  
+  
+  
+  
+  
+  <script type="text/javascript" src="/assets/lib/jquery_lazyload/jquery.lazyload.js?v=1.9.7"></script>
+
+  
+  
+  
+  
+  
+  <script type="text/javascript" src="/assets/lib/velocity/velocity.min.js?v=1.2.1"></script>
+
+  
+  
+  
+  
+  
+  <script type="text/javascript" src="/assets/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+
+  
+  
+  
+  
+  
+  <script type="text/javascript" src="/assets/lib/fancybox/source/jquery.fancybox.pack.js?v=2.1.5"></script>
+
+
+  
+
+
+  <script type="text/javascript" src="/assets/js/src/utils.js?v=5.1.1"></script>
+
+  <script type="text/javascript" src="/assets/js/src/motion.js?v=5.1.1"></script>
+
+
+
+  
+  
+
+  <script type="text/javascript" src="/assets/js/src/scrollspy.js?v=5.1.1"></script>
+<script type="text/javascript" src="/assets/js/src/post-details.js?v=5.1.1"></script>
+
+
+  
+
+
+  <script type="text/javascript" src="/assets/js/src/bootstrap.js?v=5.1.1"></script>
+
+
+
+  
+
+
+  
+
+
+
+
+	
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+  
+
+    
+
+  
+
+
+
+
+
+  <script type="text/javascript">
+    var wildfireConfig = () => ({
+      
+      useDev: true,
+      
+      
+      version: '0.5.6',
+      
+      databaseProvider: 'firebase',
+      databaseConfig: {
+        
+        apiKey: 'AIzaSyBfR8WwkHnr8Np6SCmYBIelDeLsg1O9reE',
+        authDomain: 'githubblog-b6de2.firebaseapp.com',
+        databaseURL: 'https://githubblog-b6de2.firebaseio.com',
+        projectId: 'githubblog-b6de2',
+        storageBucket: 'githubblog-b6de2.appspot.com',
+        messagingSenderId: '812229193086'
+        
+      },
+      pageURL: 'http://localhost:4000/lab%20report/2020/01/31/OS4-2/',
+      pageTitle: 'OS操作系统实验：xv6调度(RR, 优先级调度, 优先级队列） 实现和分析 Part 2- xv6 RR调度情况统计',
+      
+      theme: 'light',
+      
+      
+      locale: 'en',
+      
+      
+    });
+  </script>
+  
+    
+    <script src="https://unpkg.com/wildfire-comment@1.2.5"></script>
+    
+  
+  <script src="https://unpkg.com/wf-count"></script>
+
+
+
+  
+
+
+  <script type="text/javascript">
+    // Popup Window;
+    var isfetched = false;
+    var isXml = true;
+    // Search DB path;
+    var search_path = "";
+    if (search_path.length === 0) {
+      search_path = "search.xml";
+    } else if (/json$/i.test(search_path)) {
+      isXml = false;
+    }
+    var path = "/" + search_path;
+    // monitor main search box;
+
+    var onPopupClose = function (e) {
+      $('.popup').hide();
+      $('#local-search-input').val('');
+      $('.search-result-list').remove();
+      $('#no-result').remove();
+      $(".local-search-pop-overlay").remove();
+      $('body').css('overflow', '');
+    }
+
+    function proceedsearch() {
+      $("body")
+        .append('<div class="search-popup-overlay local-search-pop-overlay"></div>')
+        .css('overflow', 'hidden');
+      $('.search-popup-overlay').click(onPopupClose);
+      $('.popup').toggle();
+      var $localSearchInput = $('#local-search-input');
+      $localSearchInput.attr("autocapitalize", "none");
+      $localSearchInput.attr("autocorrect", "off");
+      $localSearchInput.focus();
+    }
+
+    // search function;
+    var searchFunc = function(path, search_id, content_id) {
+      'use strict';
+
+      // start loading animation
+      $("body")
+        .append('<div class="search-popup-overlay local-search-pop-overlay">' +
+          '<div id="search-loading-icon">' +
+          '<i class="fa fa-spinner fa-pulse fa-5x fa-fw"></i>' +
+          '</div>' +
+          '</div>')
+        .css('overflow', 'hidden');
+      $("#search-loading-icon").css('margin', '20% auto 0 auto').css('text-align', 'center');
+
+      $.ajax({
+        url: path,
+        dataType: isXml ? "xml" : "json",
+        async: true,
+        success: function(res) {
+          // get the contents from search data
+          isfetched = true;
+          $('.popup').detach().appendTo('.header-inner');
+          var datas = isXml ? $("entry", res).map(function() {
+            return {
+              title: $("title", this).text(),
+              content: $("content",this).text(),
+              url: $("url" , this).text()
+            };
+          }).get() : res;
+          var input = document.getElementById(search_id);
+          var resultContent = document.getElementById(content_id);
+          var inputEventFunction = function() {
+            var searchText = input.value.trim().toLowerCase();
+            var keywords = searchText.split(/[\s\-]+/);
+            if (keywords.length > 1) {
+              keywords.push(searchText);
+            }
+            var resultItems = [];
+            if (searchText.length > 0) {
+              // perform local searching
+              datas.forEach(function(data) {
+                var isMatch = false;
+                var hitCount = 0;
+                var searchTextCount = 0;
+                var title = data.title.trim();
+                var titleInLowerCase = title.toLowerCase();
+                var content = data.content.trim().replace(/<[^>]+>/g,"");
+                var contentInLowerCase = content.toLowerCase();
+                var articleUrl = decodeURIComponent(data.url);
+                var indexOfTitle = [];
+                var indexOfContent = [];
+                // only match articles with not empty titles
+                if(title != '') {
+                  keywords.forEach(function(keyword) {
+                    function getIndexByWord(word, text, caseSensitive) {
+                      var wordLen = word.length;
+                      if (wordLen === 0) {
+                        return [];
+                      }
+                      var startPosition = 0, position = [], index = [];
+                      if (!caseSensitive) {
+                        text = text.toLowerCase();
+                        word = word.toLowerCase();
+                      }
+                      while ((position = text.indexOf(word, startPosition)) > -1) {
+                        index.push({position: position, word: word});
+                        startPosition = position + wordLen;
+                      }
+                      return index;
+                    }
+
+                    indexOfTitle = indexOfTitle.concat(getIndexByWord(keyword, titleInLowerCase, false));
+                    indexOfContent = indexOfContent.concat(getIndexByWord(keyword, contentInLowerCase, false));
+                  });
+                  if (indexOfTitle.length > 0 || indexOfContent.length > 0) {
+                    isMatch = true;
+                    hitCount = indexOfTitle.length + indexOfContent.length;
+                  }
+                }
+
+                // show search results
+
+                if (isMatch) {
+                  // sort index by position of keyword
+
+                  [indexOfTitle, indexOfContent].forEach(function (index) {
+                    index.sort(function (itemLeft, itemRight) {
+                      if (itemRight.position !== itemLeft.position) {
+                        return itemRight.position - itemLeft.position;
+                      } else {
+                        return itemLeft.word.length - itemRight.word.length;
+                      }
+                    });
+                  });
+
+                  // merge hits into slices
+
+                  function mergeIntoSlice(text, start, end, index) {
+                    var item = index[index.length - 1];
+                    var position = item.position;
+                    var word = item.word;
+                    var hits = [];
+                    var searchTextCountInSlice = 0;
+                    while (position + word.length <= end && index.length != 0) {
+                      if (word === searchText) {
+                        searchTextCountInSlice++;
+                      }
+                      hits.push({position: position, length: word.length});
+                      var wordEnd = position + word.length;
+
+                      // move to next position of hit
+
+                      index.pop();
+                      while (index.length != 0) {
+                        item = index[index.length - 1];
+                        position = item.position;
+                        word = item.word;
+                        if (wordEnd > position) {
+                          index.pop();
+                        } else {
+                          break;
+                        }
+                      }
+                    }
+                    searchTextCount += searchTextCountInSlice;
+                    return {
+                      hits: hits,
+                      start: start,
+                      end: end,
+                      searchTextCount: searchTextCountInSlice
+                    };
+                  }
+
+                  var slicesOfTitle = [];
+                  if (indexOfTitle.length != 0) {
+                    slicesOfTitle.push(mergeIntoSlice(title, 0, title.length, indexOfTitle));
+                  }
+
+                  var slicesOfContent = [];
+                  while (indexOfContent.length != 0) {
+                    var item = indexOfContent[indexOfContent.length - 1];
+                    var position = item.position;
+                    var word = item.word;
+                    // cut out 100 characters
+                    var start = position - 20;
+                    var end = position + 80;
+                    if(start < 0){
+                      start = 0;
+                    }
+                    if (end < position + word.length) {
+                      end = position + word.length;
+                    }
+                    if(end > content.length){
+                      end = content.length;
+                    }
+                    slicesOfContent.push(mergeIntoSlice(content, start, end, indexOfContent));
+                  }
+
+                  // sort slices in content by search text's count and hits' count
+
+                  slicesOfContent.sort(function (sliceLeft, sliceRight) {
+                    if (sliceLeft.searchTextCount !== sliceRight.searchTextCount) {
+                      return sliceRight.searchTextCount - sliceLeft.searchTextCount;
+                    } else if (sliceLeft.hits.length !== sliceRight.hits.length) {
+                      return sliceRight.hits.length - sliceLeft.hits.length;
+                    } else {
+                      return sliceLeft.start - sliceRight.start;
+                    }
+                  });
+
+                  // select top N slices in content
+
+                  var upperBound = parseInt('1');
+                  if (upperBound >= 0) {
+                    slicesOfContent = slicesOfContent.slice(0, upperBound);
+                  }
+
+                  // highlight title and content
+
+                  function highlightKeyword(text, slice) {
+                    var result = '';
+                    var prevEnd = slice.start;
+                    slice.hits.forEach(function (hit) {
+                      result += text.substring(prevEnd, hit.position);
+                      var end = hit.position + hit.length;
+                      result += '<b class="search-keyword">' + text.substring(hit.position, end) + '</b>';
+                      prevEnd = end;
+                    });
+                    result += text.substring(prevEnd, slice.end);
+                    return result;
+                  }
+
+                  var resultItem = '';
+
+                  if (slicesOfTitle.length != 0) {
+                    resultItem += "<li><a href='" + articleUrl + "' class='search-result-title'>" + highlightKeyword(title, slicesOfTitle[0]) + "</a>";
+                  } else {
+                    resultItem += "<li><a href='" + articleUrl + "' class='search-result-title'>" + title + "</a>";
+                  }
+
+                  slicesOfContent.forEach(function (slice) {
+                    resultItem += "<a href='" + articleUrl + "'>" +
+                      "<p class=\"search-result\">" + highlightKeyword(content, slice) +
+                      "...</p>" + "</a>";
+                  });
+
+                  resultItem += "</li>";
+                  resultItems.push({
+                    item: resultItem,
+                    searchTextCount: searchTextCount,
+                    hitCount: hitCount,
+                    id: resultItems.length
+                  });
+                }
+              })
+            };
+            if (keywords.length === 1 && keywords[0] === "") {
+              resultContent.innerHTML = '<div id="no-result"><i class="fa fa-search fa-5x" /></div>'
+            } else if (resultItems.length === 0) {
+              resultContent.innerHTML = '<div id="no-result"><i class="fa fa-frown-o fa-5x" /></div>'
+            } else {
+              resultItems.sort(function (resultLeft, resultRight) {
+                if (resultLeft.searchTextCount !== resultRight.searchTextCount) {
+                  return resultRight.searchTextCount - resultLeft.searchTextCount;
+                } else if (resultLeft.hitCount !== resultRight.hitCount) {
+                  return resultRight.hitCount - resultLeft.hitCount;
+                } else {
+                  return resultRight.id - resultLeft.id;
+                }
+              });
+              var searchResultList = '<ul class=\"search-result-list\">';
+              resultItems.forEach(function (result) {
+                searchResultList += result.item;
+              })
+              searchResultList += "</ul>";
+              resultContent.innerHTML = searchResultList;
+            }
+          }
+
+          if ('auto' === 'auto') {
+            input.addEventListener('input', inputEventFunction);
+          } else {
+            $('.search-icon').click(inputEventFunction);
+            input.addEventListener('keypress', function (event) {
+              if (event.keyCode === 13) {
+                inputEventFunction();
+              }
+            });
+          }
+
+          // remove loading animation
+          $(".local-search-pop-overlay").remove();
+          $('body').css('overflow', '');
+
+          proceedsearch();
+        }
+      });
+    }
+
+    // handle and trigger popup window;
+    $('.popup-trigger').click(function(e) {
+      e.stopPropagation();
+      if (isfetched === false) {
+        searchFunc(path, 'local-search-input', 'local-search-result');
+      } else {
+        proceedsearch();
+      };
+    });
+
+    $('.popup-btn-close').click(onPopupClose);
+    $('.popup').click(function(e){
+      e.stopPropagation();
+    });
+    $(document).on('keyup', function (event) {
+      var shouldDismissSearchPopup = event.which === 27 &&
+        $('.search-popup').is(':visible');
+      if (shouldDismissSearchPopup) {
+        onPopupClose();
+      }
+    });
+  </script>
+
+
+
+
+
+  
+
+  
+  <script src="https://cdn1.lncld.net/static/js/av-core-mini-0.6.1.js"></script>
+  <script>AV.initialize("Jrde1fjYIi1vvv2280DCd6C2-gzGzoHsz", "VXnQp5diaS1YaLt2pjmWxc8W");</script>
+  <script>
+    function showTime(Counter) {
+      var query = new AV.Query(Counter);
+      var entries = [];
+      var $visitors = $(".leancloud_visitors");
+
+      $visitors.each(function () {
+        entries.push( $(this).attr("id").trim() );
+      });
+
+      query.containedIn('url', entries);
+      query.find()
+        .done(function (results) {
+          var COUNT_CONTAINER_REF = '.leancloud-visitors-count';
+
+          if (results.length === 0) {
+            $visitors.find(COUNT_CONTAINER_REF).text(0);
+            return;
+          }
+
+          for (var i = 0; i < results.length; i++) {
+            var item = results[i];
+            var url = item.get('url');
+            var time = item.get('time');
+            var element = document.getElementById(url);
+
+            $(element).find(COUNT_CONTAINER_REF).text(time);
+          }
+          for(var i = 0; i < entries.length; i++) {
+            var url = entries[i];
+            var element = document.getElementById(url);
+            var countSpan = $(element).find(COUNT_CONTAINER_REF);
+            if( countSpan.text() == '') {
+              countSpan.text(0);
+            }
+          }
+        })
+        .fail(function (object, error) {
+          console.log("Error: " + error.code + " " + error.message);
+        });
+    }
+
+    function addCount(Counter) {
+      var $visitors = $(".leancloud_visitors");
+      var url = $visitors.attr('id').trim();
+      var title = $visitors.attr('data-flag-title').trim();
+      var query = new AV.Query(Counter);
+
+      query.equalTo("url", url);
+      query.find({
+        success: function(results) {
+          if (results.length > 0) {
+            var counter = results[0];
+            counter.fetchWhenSave(true);
+            counter.increment("time");
+            counter.save(null, {
+              success: function(counter) {
+                var $element = $(document.getElementById(url));
+                $element.find('.leancloud-visitors-count').text(counter.get('time'));
+              },
+              error: function(counter, error) {
+                console.log('Failed to save Visitor num, with error message: ' + error.message);
+              }
+            });
+          } else {
+            var newcounter = new Counter();
+            /* Set ACL */
+            var acl = new AV.ACL();
+            acl.setPublicReadAccess(true);
+            acl.setPublicWriteAccess(true);
+            newcounter.setACL(acl);
+            /* End Set ACL */
+            newcounter.set("title", title);
+            newcounter.set("url", url);
+            newcounter.set("time", 1);
+            newcounter.save(null, {
+              success: function(newcounter) {
+                var $element = $(document.getElementById(url));
+                $element.find('.leancloud-visitors-count').text(newcounter.get('time'));
+              },
+              error: function(newcounter, error) {
+                console.log('Failed to create');
+              }
+            });
+          }
+        },
+        error: function(error) {
+          console.log('Error:' + error.code + " " + error.message);
+        }
+      });
+    }
+
+    $(function() {
+      var Counter = AV.Object.extend("Counter");
+      if ($('.leancloud_visitors').length == 1) {
+        addCount(Counter);
+      } else if ($('.post-title-link').length > 1) {
+        showTime(Counter);
+      }
+    });
+  </script>
+
+
+
+  
+
+  
+  
+
+
+  
+  
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({
+        tex2jax: {
+          inlineMath: [ ['$','$'], ["\\(","\\)"]  ],
+          processEscapes: true,
+          skipTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code']
+        }
+      });
+    </script>
+
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Queue(function() {
+        var all = MathJax.Hub.getAllJax(), i;
+        for (i=0; i < all.length; i += 1) {
+          all[i].SourceElement().parentNode.className += ' has-jax';
+        }
+      });
+    </script>
+    <script type="text/javascript" src="//cdn.bootcss.com/mathjax/2.7.1/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
+  
+
+
+  
+
+  
+
+</body>
+</html>
+

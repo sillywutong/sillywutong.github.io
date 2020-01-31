@@ -1,0 +1,1990 @@
+
+<!doctype html>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<html class="theme-next muse use-motion" lang="en">
+<head>
+  <meta charset="UTF-8"/>
+<meta http-equiv="X-UA-Compatible" content="IE=edge" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1"/>
+
+
+
+
+
+
+
+
+
+<meta http-equiv="Cache-Control" content="no-transform" />
+<meta http-equiv="Cache-Control" content="no-siteapp" />
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+  <link href="/assets/lib/fancybox/source/jquery.fancybox.css?v=2.1.5" rel="stylesheet" type="text/css" />
+
+
+
+
+  
+  
+  
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+    
+    
+    <link href="//fonts.googleapis.com/css?family=Lato:300,300italic,400,400italic,700,700italic&subset=latin,latin-ext" rel="stylesheet" type="text/css">
+  
+
+
+
+
+
+
+<link href="/assets/lib/font-awesome/css/font-awesome.min.css?v=4.6.2" rel="stylesheet" type="text/css" />
+
+<link href="/assets/css/main.css?v=5.1.1" rel="stylesheet" type="text/css" />
+
+
+  <meta name="keywords" content="OS,xv6,scheduling," />
+
+
+
+
+
+  <link rel="alternate" href="/atom.xml" title="Shutong Chen's Blog" type="application/atom+xml" />
+
+
+
+
+  <link rel="shortcut icon" type="image/x-icon" href="/assets/favicon.ico?v=5.1.1" />
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<meta name="description" content="Lab 4：调度 调度 任何操作系统中，都可能出现进程的个数大于处理器个数的情况，这就需要考虑如何分配处理器资源。一般进程的执行是CPU计算和IO操作的循环，当进程长时间等待某种资源时，为了更好地利用CPU资源，应选择其他准备好的进程来代替它；当进程完成所需的时间过长时，为了让其他已经在系统中的进程等待时间不要过长，也需要在某个适当的时间暂停当前的进程, 因此便需要多进程并发，也就需要调度。 调度指的是决定一个进程在什么时候、是否要暂停，从一个等待队列中选择另一个进程来代替它，调度涉及调度策略的选择，也包含完成进程切换的动作。操作系统通过不断地调度，造成并发的效果，同时也为每个进程造成独占资源的假象。调度涉及以下的问题：">
+<meta name="keywords" content="OS, xv6, scheduling">
+<meta property="og:type" content="article">
+<meta property="og:title" content="OS操作系统实验：xv6调度(RR, 优先级调度, 优先级队列） 实现和分析 Part 1- xv6代码讲解">
+<meta property="og:url" content="http://localhost:4000/lab%20report/2020/01/31/OS4/">
+<meta property="og:site_name" content="Shutong Chen's Blog">
+<meta property="og:description" content="Lab 4：调度 调度 任何操作系统中，都可能出现进程的个数大于处理器个数的情况，这就需要考虑如何分配处理器资源。一般进程的执行是CPU计算和IO操作的循环，当进程长时间等待某种资源时，为了更好地利用CPU资源，应选择其他准备好的进程来代替它；当进程完成所需的时间过长时，为了让其他已经在系统中的进程等待时间不要过长，也需要在某个适当的时间暂停当前的进程, 因此便需要多进程并发，也就需要调度。 调度指的是决定一个进程在什么时候、是否要暂停，从一个等待队列中选择另一个进程来代替它，调度涉及调度策略的选择，也包含完成进程切换的动作。操作系统通过不断地调度，造成并发的效果，同时也为每个进程造成独占资源的假象。调度涉及以下的问题：">
+<meta property="og:locale" content="en">
+<meta property="og:image" content="https://th0ar.gitbooks.io/xv6-chinese/content/pic/f5-1.png">
+<meta property="og:image" content="https://th0ar.gitbooks.io/xv6-chinese/content/pic/f1-3.png">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="OS操作系统实验：xv6调度(RR, 优先级调度, 优先级队列） 实现和分析 Part 1- xv6代码讲解">
+<meta name="twitter:description" content="Lab 4：调度 调度 任何操作系统中，都可能出现进程的个数大于处理器个数的情况，这就需要考虑如何分配处理器资源。一般进程的执行是CPU计算和IO操作的循环，当进程长时间等待某种资源时，为了更好地利用CPU资源，应选择其他准备好的进程来代替它；当进程完成所需的时间过长时，为了让其他已经在系统中的进程等待时间不要过长，也需要在某个适当的时间暂停当前的进程, 因此便需要多进程并发，也就需要调度。 调度指的是决定一个进程在什么时候、是否要暂停，从一个等待队列中选择另一个进程来代替它，调度涉及调度策略的选择，也包含完成进程切换的动作。操作系统通过不断地调度，造成并发的效果，同时也为每个进程造成独占资源的假象。调度涉及以下的问题：">
+<meta name="twitter:image" content="https://th0ar.gitbooks.io/xv6-chinese/content/pic/f5-1.png">
+
+
+<script type="text/javascript" id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '',
+    scheme: 'Muse',
+    sidebar: {"position":"right","display":"post","offset":12,"offset_float":0,"b2t":false,"scrollpercent":false},
+    fancybox: true,
+    motion: true,
+    duoshuo: {
+      userId: '0',
+      author: 'Author'
+    },
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    }
+  };
+</script>
+
+
+
+  <link rel="canonical" href="http://localhost:4000/"/>
+
+
+
+
+
+  <title>OS操作系统实验：xv6调度(RR, 优先级调度, 优先级队列） 实现和分析 Part 1- xv6代码讲解 | Shutong Chen's Blog</title>
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" lang="en">
+
+  
+  
+
+  <div class="container sidebar-position-right page-post-detail ">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"> <div class="site-brand-wrapper">
+  <div class="site-meta ">
+    
+
+    <div class="custom-logo-site-title">
+      <a href="/"  class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">Shutong Chen's Blog</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+      
+        <p class="site-subtitle"></p>
+      
+  </div>
+
+  <div class="site-nav-toggle">
+    <button>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+<nav class="site-nav">
+  
+
+  
+    <ul id="menu" class="menu">
+      
+        
+        
+        
+        <li class="menu-item menu-item-home">
+          <a href="/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-home"></i> <br />
+            
+            Home
+          </a>
+        </li>
+      
+        
+        
+        
+        <li class="menu-item menu-item-categories">
+          <a href="/categories/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-th"></i> <br />
+            
+            Categories
+          </a>
+        </li>
+      
+        
+        
+        
+        <li class="menu-item menu-item-archives">
+          <a href="/archives/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-archive"></i> <br />
+            
+            Archives
+          </a>
+        </li>
+      
+        
+        
+        
+        <li class="menu-item menu-item-tags">
+          <a href="/tags/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-tags"></i> <br />
+            
+            Tags
+          </a>
+        </li>
+      
+
+      
+        <li class="menu-item menu-item-search">
+          
+            <a href="javascript:;" class="popup-trigger">
+          
+            
+              <i class="menu-item-icon fa fa-search fa-fw"></i> <br />
+            
+            Search
+          </a>
+        </li>
+      
+    </ul>
+  
+
+  
+    <div class="site-search">
+      
+  <div class="popup search-popup local-search-popup">
+  <div class="local-search-header clearfix">
+    <span class="search-icon">
+      <i class="fa fa-search"></i>
+    </span>
+    <span class="popup-btn-close">
+      <i class="fa fa-times-circle"></i>
+    </span>
+    <div class="local-search-input-wrapper">
+      <input autocomplete="off"
+             placeholder="Searching..." spellcheck="false"
+             type="text" id="local-search-input">
+    </div>
+  </div>
+  <div id="local-search-result"></div>
+</div>
+
+
+
+    </div>
+  
+</nav>
+
+
+
+ </div>
+    </header>
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+<div id="posts" class="posts-expand">
+  
+  
+
+  
+
+  
+  
+  
+
+  <article class="post post-type- " itemscope itemtype="http://schema.org/Article">
+    <link itemprop="mainEntityOfPage" href="http://localhost:4000/lab%20report/2020/01/31/OS4/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="Shutong Chen">
+      <meta itemprop="description" content="">
+      <meta itemprop="image" content="/assets/images/avatar.jpg">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Shutong Chen's Blog">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h1 class="post-title" itemprop="name headline">
+          
+          
+            OS操作系统实验：xv6调度(RR, 优先级调度, 优先级队列） 实现和分析 Part 1- xv6代码讲解
+          
+        </h1>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">Posted on</span>
+              
+              <time title="Post created" itemprop="dateCreated datePublished" datetime="2020-01-31T00:00:00+08:00">
+                2020-01-31
+              </time>
+            
+
+            
+              <span class="post-meta-divider">|</span>
+            
+
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-check-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">Post modified</span>
+              
+              <time title="Post modified" itemprop="dateModified" datetime="">
+                
+              </time>
+            
+          </span>
+
+          
+            <span class="post-category" >
+            
+              <span class="post-meta-divider">|</span>
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">In</span>
+              
+              
+                
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/category/#/Lab%20Report" itemprop="url" rel="index">
+                    <span itemprop="name">Lab Report</span>
+                  </a>
+                </span>
+
+                
+                
+              
+            </span>
+          
+
+          
+            
+              <span class="post-comments-count">
+                <span class="post-meta-divider">|</span>
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-comment-o"></i>
+                </span>
+                <a href="/lab%20report/2020/01/31/OS4/#comments" itemprop="discussionUrl">
+                  <span class="post-comments-count wf-count-unit" wf-page-url="http://localhost:4000/lab%20report/2020/01/31/OS4/" itemprop="commentCount"></span>
+                </a>
+              </span>
+            
+          
+
+          
+          
+             <span id="/lab%20report/2020/01/31/OS4/" class="leancloud_visitors" data-flag-title="OS操作系统实验：xv6调度(RR, 优先级调度, 优先级队列） 实现和分析 Part 1- xv6代码讲解">
+               <span class="post-meta-divider">|</span>
+               <span class="post-meta-item-icon">
+                 <i class="fa fa-eye"></i>
+               </span>
+               
+                 <span class="post-meta-item-text">Visitors </span>
+               
+                 <span class="leancloud-visitors-count"></span>
+             </span>
+          
+
+          
+
+          
+
+          
+            
+                <div class="post-description">
+                    
+                </div>
+            
+          
+
+        </div>
+      </header>
+    
+
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        
+  
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  <h1 id="lab-4调度">Lab 4：调度</h1>
+
+<h2 id="调度">调度</h2>
+
+<p>任何操作系统中，都可能出现进程的个数大于处理器个数的情况，这就需要考虑如何分配处理器资源。一般进程的执行是CPU计算和IO操作的循环，当进程长时间等待某种资源时，为了更好地利用CPU资源，应选择其他准备好的进程来代替它；当进程完成所需的时间过长时，为了让其他已经在系统中的进程等待时间不要过长，也需要在某个适当的时间暂停当前的进程, 因此便需要多进程并发，也就需要调度。</p>
+
+<p>调度指的是决定一个进程在什么时候、是否要暂停，从一个等待队列中选择另一个进程来代替它，调度涉及调度策略的选择，也包含完成进程切换的动作。操作系统通过不断地调度，造成并发的效果，同时也为每个进程造成独占资源的假象。调度涉及以下的问题：</p>
+
+<!--more-->
+
+<ol>
+  <li>如何进行进程的切换？这是通过上下文的切换来实现的。上下文是一个进程运行状态的描述，包括程序计数器(<code class="language-plaintext highlighter-rouge">%eip</code>), 栈底指针(<code class="language-plaintext highlighter-rouge">%ebp</code>), 以及其他一些寄存器的值。在进程切换时，首先要保存旧进程的上下文在内核栈上，选择一个新进程，从该进程的内核栈上加载它的上下文，然后CPU就开始执行新进程<code class="language-plaintext highlighter-rouge">%eip</code>指向的指令。上下文的保存和加载使得程序可以从上次调度被暂停的地方接着进行，对进程来说，就好像切换从来没有发生过一样。</li>
+  <li>如果进程不是调用<code class="language-plaintext highlighter-rouge">sleep</code>主动放弃CPU，如何让进程的切换透明化呢？ xv6简单地使用时钟中断来完成。当时钟中断到来时，进程陷入中断处理程序，在内核中调用<code class="language-plaintext highlighter-rouge">yield</code>来进行上下文切换。</li>
+  <li>多个CPU同时在切换进程时，由于需要对进程表进行修改，可能会产生竞态条件，因此还要用锁来避免竞争。</li>
+  <li>进程结束时，需要释放资源。进程不能自己释放自己的所有资源，因此内核中还必须有一个角色负责监测进程的结束、释放资源。</li>
+  <li>当进程调用<code class="language-plaintext highlighter-rouge">sleep</code>进入睡眠时，调度也会发生。这时，要确保有其他进程可以唤起该进程，因此xv6需要提供一套进程间通信的机制，例如<code class="language-plaintext highlighter-rouge">sleep</code>和<code class="language-plaintext highlighter-rouge">wake up</code>。</li>
+</ol>
+
+<p>本次实验将详细研究整个调度的过程，看xv6如何解决上述问题，并实现优先级调度算法。</p>
+
+<p>在开始实验之前，需要了解以下事实： xv6永远不会从一个用户态进程切换到另一个用户态进程。在xv6中，调度发生在以下几种情况：1. 进程调用<code class="language-plaintext highlighter-rouge">sleep</code>进入休眠，主动放弃CPU，这会导致进程进入内核态，保存进程的上下文并加载调度器的上下文，当调度器返回时，该进程仍处于内核态；2. 进程收到时钟中断，已经运行完一个时间片，这也会导致进程进入内核态，并在<code class="language-plaintext highlighter-rouge">yield</code>中将控制权交给调度器；3. 进程调用<code class="language-plaintext highlighter-rouge">exit</code>结束。 在这些情况下，切换的过程都是 陷入内核→保存上下文→切换到调度器的上下文 → 切换到新进程的上下文（在内核态中） → 返回新进程的用户态。</p>
+
+<p><img src="https://th0ar.gitbooks.io/xv6-chinese/content/pic/f5-1.png" alt="figure5-1" /></p>
+
+<h2 id="todo1-阅读procc中的函数">TODO1: 阅读proc.c中的函数</h2>
+
+<p>我们先看调度发生的一般场景：进程运行完时间片，被迫放弃CPU，选择下一个进程调度。</p>
+
+<p>xv6的时钟每100毫秒就产生一个中断，以此实现进程时间分片。时钟中断是由lapic产生的，因此每个cpu可以独立地接收它的时钟中断。当接收到时钟中断时，进程会开启保护模式，陷入到内核态，来到中断处理程序的入口，然后在<code class="language-plaintext highlighter-rouge">alltraps</code>中保存中断帧，调用<code class="language-plaintext highlighter-rouge">traps</code>，<code class="language-plaintext highlighter-rouge">traps</code>根据中断号来判断应该执行哪种程序。在<code class="language-plaintext highlighter-rouge">traps</code>的最后，有可能调用<code class="language-plaintext highlighter-rouge">yield</code>使进程放弃CPU：</p>
+
+<div class="language-c highlighter-rouge"><div class="highlight"><table style="margin: 0px"><tbody><tr><td class="gutter"><pre>1<br/>2<br/>3<br/>4<br/>5<br/>6</pre></td><td class="code"><pre class="highlight"><code>  <span class="c1">// Force process to give up CPU on clock tick.</span>
+  <span class="c1">// If interrupts were on while locks held, would need to check nlock.</span>
+  <span class="k">if</span><span class="p">(</span><span class="n">myproc</span><span class="p">()</span> <span class="o">&amp;&amp;</span> <span class="n">myproc</span><span class="p">()</span><span class="o">-&gt;</span><span class="n">state</span> <span class="o">==</span> <span class="n">RUNNING</span> <span class="o">&amp;&amp;</span>
+     <span class="n">tf</span><span class="o">-&gt;</span><span class="n">trapno</span> <span class="o">==</span> <span class="n">T_IRQ0</span><span class="o">+</span><span class="n">IRQ_TIMER</span><span class="p">)</span>   <span class="c1">//当目前CPU上有正在运行的进程，且中断为时钟中断时，才会调用yield</span>
+    <span class="n">yield</span><span class="p">();</span>
+
+</code></pre></td></tr></tbody></table></div></div>
+
+<h3 id="yield">yield</h3>
+
+<p><code class="language-plaintext highlighter-rouge">yield</code>函数在<code class="language-plaintext highlighter-rouge">proc.c</code>中实现:</p>
+
+<div class="language-c highlighter-rouge"><div class="highlight"><table style="margin: 0px"><tbody><tr><td class="gutter"><pre>1<br/>2<br/>3<br/>4<br/>5<br/>6<br/>7<br/>8<br/>9<br/>10</pre></td><td class="code"><pre class="highlight"><code><span class="c1">// Give up the CPU for one scheduling round.</span>
+<span class="kt">void</span>
+<span class="nf">yield</span><span class="p">(</span><span class="kt">void</span><span class="p">)</span>
+<span class="p">{</span>
+  <span class="n">acquire</span><span class="p">(</span><span class="o">&amp;</span><span class="n">ptable</span><span class="p">.</span><span class="n">lock</span><span class="p">);</span>  <span class="c1">//DOC: yieldlock</span>
+  <span class="n">myproc</span><span class="p">()</span><span class="o">-&gt;</span><span class="n">state</span> <span class="o">=</span> <span class="n">RUNNABLE</span><span class="p">;</span>
+  <span class="n">sched</span><span class="p">();</span>
+  <span class="n">release</span><span class="p">(</span><span class="o">&amp;</span><span class="n">ptable</span><span class="p">.</span><span class="n">lock</span><span class="p">);</span>
+<span class="p">}</span>
+
+</code></pre></td></tr></tbody></table></div></div>
+
+<p><code class="language-plaintext highlighter-rouge">yield</code>是将目前进程的状态从<code class="language-plaintext highlighter-rouge">RUNNING</code>改为<code class="language-plaintext highlighter-rouge">RUNNABLE</code>，让进程进入等待队列，然后调用<code class="language-plaintext highlighter-rouge">sched</code>将控制权转移给调度器。由于进程PCB存放在进程表上，因此对状态进行修改之前要首先<code class="language-plaintext highlighter-rouge">acquire(&amp;ptable.lock)</code>获取进程表的锁，等进程再次被调度时，它会返回到<code class="language-plaintext highlighter-rouge">yield</code>中<code class="language-plaintext highlighter-rouge">sched</code>的下一行，释放进程表锁。这里要注意，在上一个实验中，我们知道xv6的内核中临界节内不允许中断，所以在进入<code class="language-plaintext highlighter-rouge">sched</code>之前，中断是已经关闭的状态。</p>
+
+<h3 id="sched">sched</h3>
+
+<p><code class="language-plaintext highlighter-rouge">sched</code>的任务是首先确保进程有放弃CPU，进行调度的条件，然后调用<code class="language-plaintext highlighter-rouge">swtch</code>进行上下文切换，转到cpu调度器<code class="language-plaintext highlighter-rouge">scheduler</code>上。</p>
+
+<div class="language-c highlighter-rouge"><div class="highlight"><table style="margin: 0px"><tbody><tr><td class="gutter"><pre>1<br/>2<br/>3<br/>4<br/>5<br/>6<br/>7<br/>8<br/>9<br/>10<br/>11<br/>12<br/>13<br/>14<br/>15<br/>16<br/>17<br/>18<br/>19<br/>20<br/>21<br/>22<br/>23<br/>24<br/>25<br/>26<br/>27</pre></td><td class="code"><pre class="highlight"><code><span class="c1">// Enter scheduler.  Must hold only ptable.lock</span>
+<span class="c1">// and have changed proc-&gt;state. Saves and restores</span>
+<span class="c1">// intena because intena is a property of this</span>
+<span class="c1">// kernel thread, not this CPU. It should</span>
+<span class="c1">// be proc-&gt;intena and proc-&gt;ncli, but that would</span>
+<span class="c1">// break in the few places where a lock is held but</span>
+<span class="c1">// there's no process.</span>
+<span class="kt">void</span>
+<span class="nf">sched</span><span class="p">(</span><span class="kt">void</span><span class="p">)</span>
+<span class="p">{</span>
+  <span class="kt">int</span> <span class="n">intena</span><span class="p">;</span>
+  <span class="k">struct</span> <span class="n">proc</span> <span class="o">*</span><span class="n">p</span> <span class="o">=</span> <span class="n">myproc</span><span class="p">();</span>
+
+  <span class="k">if</span><span class="p">(</span><span class="o">!</span><span class="n">holding</span><span class="p">(</span><span class="o">&amp;</span><span class="n">ptable</span><span class="p">.</span><span class="n">lock</span><span class="p">))</span>
+    <span class="n">panic</span><span class="p">(</span><span class="s">"sched ptable.lock"</span><span class="p">);</span>
+  <span class="k">if</span><span class="p">(</span><span class="n">mycpu</span><span class="p">()</span><span class="o">-&gt;</span><span class="n">ncli</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">){</span>
+    <span class="n">panic</span><span class="p">(</span><span class="s">"sched locks"</span><span class="p">);</span>
+  <span class="p">}</span>
+  <span class="k">if</span><span class="p">(</span><span class="n">p</span><span class="o">-&gt;</span><span class="n">state</span> <span class="o">==</span> <span class="n">RUNNING</span><span class="p">)</span>
+    <span class="n">panic</span><span class="p">(</span><span class="s">"sched running"</span><span class="p">);</span>
+  <span class="k">if</span><span class="p">(</span><span class="n">readeflags</span><span class="p">()</span><span class="o">&amp;</span><span class="n">FL_IF</span><span class="p">)</span>
+    <span class="n">panic</span><span class="p">(</span><span class="s">"sched interruptible"</span><span class="p">);</span>
+  <span class="n">intena</span> <span class="o">=</span> <span class="n">mycpu</span><span class="p">()</span><span class="o">-&gt;</span><span class="n">intena</span><span class="p">;</span>
+  <span class="n">swtch</span><span class="p">(</span><span class="o">&amp;</span><span class="n">p</span><span class="o">-&gt;</span><span class="n">context</span><span class="p">,</span> <span class="n">mycpu</span><span class="p">()</span><span class="o">-&gt;</span><span class="n">scheduler</span><span class="p">);</span>
+  <span class="n">mycpu</span><span class="p">()</span><span class="o">-&gt;</span><span class="n">intena</span> <span class="o">=</span> <span class="n">intena</span><span class="p">;</span>
+<span class="p">}</span>
+
+</code></pre></td></tr></tbody></table></div></div>
+
+<p>首先，<code class="language-plaintext highlighter-rouge">holding(&amp;ptable.lock)</code>判断该cpu是否已经持有了进程表的锁，因为多个CPU在调度过程中都需要访问进程表，假如这个cpu进入调度之前，没有先持有锁，那就有可能使其他cpu也同时进行调度，同时访问进程表，可能会出现两个cpu选择了同一个进程调度的情况。</p>
+
+<p>然后<code class="language-plaintext highlighter-rouge">mycpu()-&gt;ncli!=1</code>判断该cpu调用<code class="language-plaintext highlighter-rouge">pushcli</code>的次数是否恰好为1，否则会报错。在上个实验我们知道，每一次调用<code class="language-plaintext highlighter-rouge">acquire</code>获得锁，就会使<code class="language-plaintext highlighter-rouge">ncli</code>加一，释放锁后<code class="language-plaintext highlighter-rouge">ncli</code>减一。所以ncli为1就说明这里只允许进程持有一个锁，也就是说，进程被切换时，必须持有进程表的锁，并且必须释放其他所有的锁。持有进程表的锁是为了保证CPU的调度是互斥的，防止竞态条件，而释放其他所有锁是为了防止死锁的情况出现。</p>
+
+<p>如果<code class="language-plaintext highlighter-rouge">p-&gt;state==RUNNING</code>，进程的状态是仍在运行，不可以进入调度。这是操作系统中约定好的分工：<code class="language-plaintext highlighter-rouge">sched</code>应该只负责进入调度器，而不应该判断进程是因为什么原因而被暂停的，所以假如进程是终止了，应该由<code class="language-plaintext highlighter-rouge">exit</code>来将状态变为<code class="language-plaintext highlighter-rouge">ZOMBIE</code>，如果进程是被时钟中断了，应该由<code class="language-plaintext highlighter-rouge">yield</code>将状态变为<code class="language-plaintext highlighter-rouge">RUNNABLE</code>，休眠也同理。进入<code class="language-plaintext highlighter-rouge">sched</code>之前，进程的状态应该已经改变好。</p>
+
+<p><code class="language-plaintext highlighter-rouge">sched</code>最后通过<code class="language-plaintext highlighter-rouge">readeflags()FL_IF</code>，检查标志寄存器中IF段的值，确保中断已经关闭，然后它将<code class="language-plaintext highlighter-rouge">mycpu()-&gt;intena</code>暂时保存起来，这个变量表示CPU在调用<code class="language-plaintext highlighter-rouge">yield</code>之前，中断是否被允许，因为之后在调度器中要调用<code class="language-plaintext highlighter-rouge">sti</code>开启中断，可能会破坏原来CPU的中断状态，所以暂存起来，等从调度器返回（进程被重新调度）的时候，再恢复这个值。</p>
+
+<p><code class="language-plaintext highlighter-rouge">sched</code>调用<code class="language-plaintext highlighter-rouge">swtch(&amp;p-&gt;context, mycpu()-&gt;scheduler)</code>来切换上下文，<code class="language-plaintext highlighter-rouge">swtch</code>的汇编代码如下：</p>
+
+<pre><code class="language-asm"># Context switch
+#
+#   void swtch(struct context **old, struct context *new);
+# 
+# Save the current registers on the stack, creating
+# a struct context, and save its address in *old.
+# Switch stacks to new and pop previously-saved registers.
+
+.globl swtch
+swtch:
+  movl 4(%esp), %eax
+  movl 8(%esp), %edx              # swtch的第二个参数，即新的上下文
+
+  # Save old callee-saved registers
+  pushl %ebp                      # 保存旧进程内核栈的栈底指针
+  pushl %ebx                      # 保存旧进程%ebx寄存器
+  pushl %esi					# 保存旧进程%esi
+  pushl %edi					#               和%edi寄存器
+
+  # Switch stacks
+  movl %esp, (%eax)
+  movl %edx, %esp				# 
+
+  # Load new callee-saved registers
+  popl %edi
+  popl %esi
+  popl %ebx
+  popl %ebp
+  ret
+</code></pre>
+
+<p>首先，进程上下文中包含的信息有：</p>
+
+<div class="language-c highlighter-rouge"><div class="highlight"><table style="margin: 0px"><tbody><tr><td class="gutter"><pre>1<br/>2<br/>3<br/>4<br/>5<br/>6<br/>7</pre></td><td class="code"><pre class="highlight"><code><span class="k">struct</span> <span class="n">context</span> <span class="p">{</span>
+  <span class="n">uint</span> <span class="n">edi</span><span class="p">;</span>
+  <span class="n">uint</span> <span class="n">esi</span><span class="p">;</span>
+  <span class="n">uint</span> <span class="n">ebx</span><span class="p">;</span>
+  <span class="n">uint</span> <span class="n">ebp</span><span class="p">;</span>
+  <span class="n">uint</span> <span class="n">eip</span><span class="p">;</span>
+<span class="p">};</span>
+</code></pre></td></tr></tbody></table></div></div>
+
+<p>为什么只需要保存这些呢？假设进程在某个函数中，发生了上下文切换，那么首先不需要保存的是调用者保存的寄存器，如%eax，%ecx，%edx，因为该函数的调用者已经提前把它们保存在进程的栈上了。也不需要保存段寄存器，如%cs等，因为在指令地址发生改变的时候，这些寄存器也会同时改变。所以，要保存的有栈底指针、%ebx、程序计数器%eip、参数寄存器%edi、%esi。</p>
+
+<p>上下文保存在进程内核栈上：</p>
+
+<p><img src="https://th0ar.gitbooks.io/xv6-chinese/content/pic/f1-3.png" alt="figure1-3" /></p>
+
+<p>在进程从<code class="language-plaintext highlighter-rouge">yield</code>进入到<code class="language-plaintext highlighter-rouge">sched</code>再进入到<code class="language-plaintext highlighter-rouge">swtch</code>的这个时候，cpu首先是运行在旧进程的内核栈上的。在这里，<code class="language-plaintext highlighter-rouge">swtch</code>传入两个参数，第一个是旧进程上下文的指针的地址，第二个是该cpu调度器进程的上下文的指针，调度器的上下文也是调度器上一次调用<code class="language-plaintext highlighter-rouge">swtch</code>时保存的。我们逐条指令分析上下文切换的过程：</p>
+
+<pre><code class="language-assembly">swtch:
+  movl 4(%esp), %eax                  # 第一个参数
+  movl 8(%esp), %edx                  # 第二个参数
+</code></pre>
+
+<p>这两条指令中，<code class="language-plaintext highlighter-rouge">%esp</code>指向旧进程内核栈现在的栈底，因为它调用了<code class="language-plaintext highlighter-rouge">swtch</code>，所以（%esp）上存放的是<code class="language-plaintext highlighter-rouge">sched</code>中<code class="language-plaintext highlighter-rouge">swtch</code>的返回地址。4(%esp)和8(%esp)分别是<code class="language-plaintext highlighter-rouge">swtch</code>的第一个和第二个参数，也就是旧进程上下文和新进程（调度器）上下文的指针。</p>
+
+<p>画出旧进程内核栈：</p>
+
+<table>
+  <thead>
+    <tr>
+      <th style="text-align: right"> </th>
+      <th style="text-align: center">…</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="text-align: right">旧进程上下文指针</td>
+      <td style="text-align: center">p-&gt;context</td>
+    </tr>
+    <tr>
+      <td style="text-align: right">调度器上下文指针</td>
+      <td style="text-align: center">mycpu()-&gt;scheduler</td>
+    </tr>
+    <tr>
+      <td style="text-align: right">%esp→</td>
+      <td style="text-align: center">mycpu()-&gt;intena = intena 对应指令的地址</td>
+    </tr>
+    <tr>
+      <td style="text-align: right"> </td>
+      <td style="text-align: center"> </td>
+    </tr>
+  </tbody>
+</table>
+
+<pre><code class="language-assembly"># Save old callee-saved registers
+  pushl %ebp                      # 保存旧进程内核栈的栈底指针
+  pushl %ebx                      # 保存旧进程%ebx寄存器
+  pushl %esi					# 保存旧进程%esi
+  pushl %edi					#               和%edi寄存器
+</code></pre>
+
+<p>这四条指令是将旧进程的上下文保存到当前栈（旧进程的内核栈）上。</p>
+
+<table>
+  <thead>
+    <tr>
+      <th style="text-align: right"> </th>
+      <th style="text-align: center">…</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="text-align: right">旧进程上下文指针</td>
+      <td style="text-align: center">&amp;p-&gt;context</td>
+    </tr>
+    <tr>
+      <td style="text-align: right">调度器上下文指针</td>
+      <td style="text-align: center">mycpu()-&gt;scheduler</td>
+    </tr>
+    <tr>
+      <td style="text-align: right"> </td>
+      <td style="text-align: center">mycpu()-&gt;intena = intena 对应指令的地址</td>
+    </tr>
+    <tr>
+      <td style="text-align: right"> </td>
+      <td style="text-align: center">ebp</td>
+    </tr>
+    <tr>
+      <td style="text-align: right"> </td>
+      <td style="text-align: center">ebx</td>
+    </tr>
+    <tr>
+      <td style="text-align: right"> </td>
+      <td style="text-align: center">esi</td>
+    </tr>
+    <tr>
+      <td style="text-align: right">%esp→</td>
+      <td style="text-align: center">edi</td>
+    </tr>
+    <tr>
+      <td style="text-align: right"> </td>
+      <td style="text-align: center"> </td>
+    </tr>
+  </tbody>
+</table>
+
+<pre><code class="language-assembly"># Switch stacks
+  movl %esp, (%eax)       # 令p-&gt;context = %esp
+  movl %edx, %esp				
+</code></pre>
+
+<p>然后交换栈。从第一、二条指令我们知道，现在（%eax）中是旧进程的上下文指针，令（%eax）=%esp，也就是让旧进程上下文指针重新指到现在它保存的地方。而%edx中是调度器上下文指针，把%edx赋给%esp，使栈底指针指向了调度器上下文所在的位置，这样，就<strong>从旧进程的内核栈切换到了调度器所在的栈</strong>（前者是代表用户进程的，是用户进程在内核态下运行时使用的栈，后者不代表任何用户进程，它是内核进程进行时使用的栈）。</p>
+
+<table>
+  <thead>
+    <tr>
+      <th style="text-align: right">(旧进程的内核栈)</th>
+      <th style="text-align: center">…</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="text-align: right">旧进程上下文指针</td>
+      <td style="text-align: center">&amp;p-&gt;context</td>
+    </tr>
+    <tr>
+      <td style="text-align: right">调度器上下文指针</td>
+      <td style="text-align: center">mycpu()-&gt;scheduler</td>
+    </tr>
+    <tr>
+      <td style="text-align: right">旧进程中swtch返回地址</td>
+      <td style="text-align: center">mycpu()-&gt;intena = intena 对应指令的地址</td>
+    </tr>
+    <tr>
+      <td style="text-align: right"> </td>
+      <td style="text-align: center">ebp</td>
+    </tr>
+    <tr>
+      <td style="text-align: right"> </td>
+      <td style="text-align: center">ebx</td>
+    </tr>
+    <tr>
+      <td style="text-align: right"> </td>
+      <td style="text-align: center">esi</td>
+    </tr>
+    <tr>
+      <td style="text-align: right"><strong>p-&gt;context</strong>→</td>
+      <td style="text-align: center">edi</td>
+    </tr>
+    <tr>
+      <td style="text-align: right"> </td>
+      <td style="text-align: center"> </td>
+    </tr>
+  </tbody>
+</table>
+
+<table>
+  <thead>
+    <tr>
+      <th style="text-align: right">（调度器所在的栈）</th>
+      <th style="text-align: center">…</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="text-align: right">调度器中swtch返回地址</td>
+      <td style="text-align: center">ret</td>
+    </tr>
+    <tr>
+      <td style="text-align: right">调度器的上下文</td>
+      <td style="text-align: center">ebp</td>
+    </tr>
+    <tr>
+      <td style="text-align: right"> </td>
+      <td style="text-align: center">ebx</td>
+    </tr>
+    <tr>
+      <td style="text-align: right"> </td>
+      <td style="text-align: center">esi</td>
+    </tr>
+    <tr>
+      <td style="text-align: right"><strong>%esp</strong>→</td>
+      <td style="text-align: center">edi</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>栈切换之后，栈底指针指向调度器上下文所在的地址。现在，就可以从栈上pop出调度器的上下文了：</p>
+
+<pre><code class="language-assembly"># Load new callee-saved registers
+  popl %edi
+  popl %esi
+  popl %ebx
+  popl %ebp
+  ret
+</code></pre>
+
+<p>最后，<code class="language-plaintext highlighter-rouge">ret</code>会返回到<code class="language-plaintext highlighter-rouge">scheduler</code>中，<code class="language-plaintext highlighter-rouge">swtch</code>的下一行位置（而不是返回<code class="language-plaintext highlighter-rouge">sched</code>)。这样，cpu控制权就从旧的进程转移到了调度器。从<code class="language-plaintext highlighter-rouge">swtch</code>指令中，我们没有看到对%eip的显式保存，这是因为旧进程的%eip在用<code class="language-plaintext highlighter-rouge">call swtch</code>调用swtch时就已经隐式地保存在了%ebp的前面，同样，<code class="language-plaintext highlighter-rouge">ret</code>指令也隐式地把调度器栈上的返回地址加载到了%eip中。</p>
+
+<hr />
+
+<h3 id="scheduler">scheduler</h3>
+
+<p><code class="language-plaintext highlighter-rouge">scheduler</code>就是上述的调度器。每一个进程最终都会将控制权返回到调度器，调度器会从等待队列中选择一个进程开始运行，它会调用<code class="language-plaintext highlighter-rouge">swtch</code>保存自己的上下文，然后切换到该进程的上下文开始运行。</p>
+
+<div class="language-c highlighter-rouge"><div class="highlight"><table style="margin: 0px"><tbody><tr><td class="gutter"><pre>1<br/>2<br/>3<br/>4<br/>5<br/>6<br/>7<br/>8<br/>9<br/>10<br/>11<br/>12<br/>13<br/>14<br/>15<br/>16<br/>17<br/>18<br/>19<br/>20<br/>21<br/>22<br/>23<br/>24<br/>25<br/>26<br/>27<br/>28<br/>29<br/>30<br/>31<br/>32<br/>33</pre></td><td class="code"><pre class="highlight"><code><span class="c1">//PAGEBREAK: 42</span>
+<span class="c1">// Per-CPU process scheduler.</span>
+<span class="c1">// Each CPU calls scheduler() after setting itself up.</span>
+<span class="c1">// Scheduler never returns.  It loops, doing:</span>
+<span class="c1">//  - choose a process to run</span>
+<span class="c1">//  - swtch to start running that process</span>
+<span class="c1">//  - eventually that process transfers control</span>
+<span class="c1">//      via swtch back to the scheduler.</span>
+<span class="kt">void</span>
+<span class="nf">scheduler</span><span class="p">(</span><span class="kt">void</span><span class="p">)</span>
+<span class="p">{</span>
+  <span class="k">struct</span> <span class="n">proc</span> <span class="o">*</span><span class="n">p</span><span class="p">;</span>
+  <span class="k">struct</span> <span class="n">cpu</span> <span class="o">*</span><span class="n">c</span> <span class="o">=</span> <span class="n">mycpu</span><span class="p">();</span>
+  <span class="n">c</span><span class="o">-&gt;</span><span class="n">proc</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+  
+  <span class="k">for</span><span class="p">(;;){</span>
+    <span class="c1">// Enable interrupts on this processor.</span>
+    <span class="n">sti</span><span class="p">();</span>     <span class="c1">//每一次从sched进入调度器，都会开启中断</span>
+
+    <span class="c1">// Loop over process table looking for process to run.</span>
+    <span class="n">acquire</span><span class="p">(</span><span class="o">&amp;</span><span class="n">ptable</span><span class="p">.</span><span class="n">lock</span><span class="p">);</span>
+    <span class="k">for</span><span class="p">(</span><span class="n">p</span> <span class="o">=</span> <span class="n">ptable</span><span class="p">.</span><span class="n">proc</span><span class="p">;</span> <span class="n">p</span> <span class="o">&lt;</span> <span class="o">&amp;</span><span class="n">ptable</span><span class="p">.</span><span class="n">proc</span><span class="p">[</span><span class="n">NPROC</span><span class="p">];</span> <span class="n">p</span><span class="o">++</span><span class="p">){</span>
+      <span class="k">if</span><span class="p">(</span><span class="n">p</span><span class="o">-&gt;</span><span class="n">state</span> <span class="o">!=</span> <span class="n">RUNNABLE</span><span class="p">)</span>
+        <span class="k">continue</span><span class="p">;</span>
+
+      <span class="c1">// Switch to chosen process.  It is the process's job</span>
+	    <span class="p">........</span>
+    <span class="p">}</span>
+    <span class="n">release</span><span class="p">(</span><span class="o">&amp;</span><span class="n">ptable</span><span class="p">.</span><span class="n">lock</span><span class="p">);</span>
+
+  <span class="p">}</span>
+<span class="p">}</span>
+
+</code></pre></td></tr></tbody></table></div></div>
+
+<p>调度器是一个两层的for循环。外层循环是无限循环，这意味着调度器永远不会返回。内层循环中，调度器遍历进程表，选择进程运行。在CPU开始的时候，它就会调用<code class="language-plaintext highlighter-rouge">scheduler</code>.</p>
+
+<p><code class="language-plaintext highlighter-rouge">scheduler</code>每一次从内层循环退出，进入外层循环，都要显示地执行<code class="language-plaintext highlighter-rouge">sti</code>指令允许中断，并且要将ptable锁释放之后再重新获取。这两个步骤都是很有必要的，因为从内层循环退出，意味着调度器可能检查了一遍ptable，没有找到可以运行的进程，这时有可能所有的进程都在等待IO中断，如果不执行<code class="language-plaintext highlighter-rouge">sti</code>开启中断的话，IO中断永远也不能到达进程。而如果一个闲置CPU的调度器一直不释放锁，那么其他CPU也不能访问ptable，进行上下文或者系统调用了，所以就没有CPU能够将一个进程的状态改为RUNNABLE，这个CPU也无法跳出循环。</p>
+
+<p><code class="language-plaintext highlighter-rouge">scheduler</code>内层循环遍历进程表，寻找下一个RUNNABLE的进程并切换到进程的上下文中运行。</p>
+
+<div class="language-c highlighter-rouge"><div class="highlight"><table style="margin: 0px"><tbody><tr><td class="gutter"><pre>1<br/>2<br/>3<br/>4<br/>5<br/>6<br/>7<br/>8<br/>9<br/>10<br/>11<br/>12<br/>13<br/>14<br/>15<br/>16<br/>17<br/>18<br/>19</pre></td><td class="code"><pre class="highlight"><code><span class="k">for</span><span class="p">(</span><span class="n">p</span> <span class="o">=</span> <span class="n">ptable</span><span class="p">.</span><span class="n">proc</span><span class="p">;</span> <span class="n">p</span> <span class="o">&lt;</span> <span class="o">&amp;</span><span class="n">ptable</span><span class="p">.</span><span class="n">proc</span><span class="p">[</span><span class="n">NPROC</span><span class="p">];</span> <span class="n">p</span><span class="o">++</span><span class="p">){</span>
+      <span class="k">if</span><span class="p">(</span><span class="n">p</span><span class="o">-&gt;</span><span class="n">state</span> <span class="o">!=</span> <span class="n">RUNNABLE</span><span class="p">)</span>
+        <span class="k">continue</span><span class="p">;</span>
+
+      <span class="c1">// Switch to chosen process.  It is the process's job</span>
+      <span class="c1">// to release ptable.lock and then reacquire it</span>
+      <span class="c1">// before jumping back to us.</span>
+      <span class="c1">// 找到了一个RUNNABLE的进程</span>
+      <span class="n">c</span><span class="o">-&gt;</span><span class="n">proc</span> <span class="o">=</span> <span class="n">p</span><span class="p">;</span>      <span class="c1">//该cpu上现在运行的进程为*p</span>
+      <span class="n">switchuvm</span><span class="p">(</span><span class="n">p</span><span class="p">);</span>     <span class="c1">// 加载该进程的地址空间</span>
+      <span class="n">p</span><span class="o">-&gt;</span><span class="n">state</span> <span class="o">=</span> <span class="n">RUNNING</span><span class="p">;</span>   <span class="c1">//将进程状态变为RUNNING</span>
+
+      <span class="n">swtch</span><span class="p">(</span><span class="o">&amp;</span><span class="p">(</span><span class="n">c</span><span class="o">-&gt;</span><span class="n">scheduler</span><span class="p">),</span> <span class="n">p</span><span class="o">-&gt;</span><span class="n">context</span><span class="p">);</span>
+      <span class="n">switchkvm</span><span class="p">();</span>
+
+      <span class="c1">// Process is done running for now.</span>
+      <span class="c1">// It should have changed its p-&gt;state before coming back.</span>
+      <span class="n">c</span><span class="o">-&gt;</span><span class="n">proc</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+    <span class="p">}</span>
+</code></pre></td></tr></tbody></table></div></div>
+
+<p>当调度器找到了一个RUNNABLE的进程，就将<code class="language-plaintext highlighter-rouge">cpu-&gt;proc</code> 设置为它的PCB指针，然后调用<code class="language-plaintext highlighter-rouge">switchuvm</code>将该进程的内存空间、页表加载进内存中，并将进程状态设置为RUNNING.</p>
+
+<p>然后，调用<code class="language-plaintext highlighter-rouge">swtch</code>进行上下文的切换。现在，第一个参数（旧的上下文）是调度器的上下文指针的地址<code class="language-plaintext highlighter-rouge">&amp;(c-&gt;scheduler)</code>, 第二个参数是新进程上下文的指针。这个<code class="language-plaintext highlighter-rouge">swtch</code>将保存调度器的上下文，并将<code class="language-plaintext highlighter-rouge">c-&gt;scheduler</code>指向保存的位置，然后从调度器的栈换到新进程的内核栈，从栈上加载新进程的上下文，然后转到新进程<code class="language-plaintext highlighter-rouge">sched</code>中<code class="language-plaintext highlighter-rouge">swtch</code>返回处运行。新进程将马上释放ptable 锁。</p>
+
+<p>有的时候，<code class="language-plaintext highlighter-rouge">swtch</code>也不一定是返回到新进程的<code class="language-plaintext highlighter-rouge">sched</code>处。如果该新进程是刚刚被<code class="language-plaintext highlighter-rouge">fork</code>产生，这是它第一次被调度，那么<code class="language-plaintext highlighter-rouge">swtch</code>就会返回到<code class="language-plaintext highlighter-rouge">forkret</code>处，在<code class="language-plaintext highlighter-rouge">forkret</code>中释放ptable锁，再从<code class="language-plaintext highlighter-rouge">forkret</code>返回到<code class="language-plaintext highlighter-rouge">trapret</code>，退出内核态。</p>
+
+<p>当调度器从<code class="language-plaintext highlighter-rouge">swtch</code>返回，意味着有某个进程调用了<code class="language-plaintext highlighter-rouge">sched</code>把控制权返还给它，它首先调用<code class="language-plaintext highlighter-rouge">swtchkvm</code>转换到内核的页表，然后将<code class="language-plaintext highlighter-rouge">c-&gt;proc</code>置为0，表示暂时没有进程在该cpu上运行。然后，如果该进程不是位于ptable的最后一个槽，调度器就会继续查找下一个RUNNABLE的进程，重复以上步骤。否则，它将释放ptable锁，并开启中断。</p>
+
+<h3 id="睡眠与唤醒">睡眠与唤醒</h3>
+
+<p>睡眠和唤醒提供了进程间通信的机制，它们可以让一个进程暂时休眠，等待某个特定事件的发生，然后当特定事件发生时，另一个进程会唤醒该进程。睡眠与唤醒通常被称为顺序合作或者有条件同步机制。 睡眠是调度发生的另一种情况，当进程调用<code class="language-plaintext highlighter-rouge">sleep</code>进入休眠时，它会调用<code class="language-plaintext highlighter-rouge">sched</code>把控制权交给调度器。</p>
+
+<p><code class="language-plaintext highlighter-rouge">sleep</code>有两个参数，第一个参数<code class="language-plaintext highlighter-rouge">chan</code>是休眠被唤醒的信号，这个信号使得进程可以互相通信，一个进程调用<code class="language-plaintext highlighter-rouge">sleep(chan)</code>进入休眠，另一个进程用同样的<code class="language-plaintext highlighter-rouge">chan</code>调用<code class="language-plaintext highlighter-rouge">wakeup(chan)</code>就可以把它唤醒。第二个参数<code class="language-plaintext highlighter-rouge">lk</code>是调用休眠时必须持有的一个锁，这个锁主要是为了防止“遗失的唤醒”问题。一般，进程如果需要休眠，它需要循环判断某个条件是否成立（例如磁盘是否已经准备好），如果还不成立，就会调用<code class="language-plaintext highlighter-rouge">sleep</code>进入休眠。例如：</p>
+
+<div class="language-c highlighter-rouge"><div class="highlight"><table style="margin: 0px"><tbody><tr><td class="gutter"><pre>1<br/>2<br/>3</pre></td><td class="code"><pre class="highlight"><code><span class="k">while</span><span class="p">(</span><span class="n">r</span> <span class="o">=</span> <span class="n">something</span><span class="p">()</span> <span class="o">==</span> <span class="mi">0</span><span class="p">){</span>
+    <span class="n">sleep</span><span class="p">();</span>
+<span class="p">}</span>
+</code></pre></td></tr></tbody></table></div></div>
+
+<p>之所以需要while循环判断，是因为如果某次事件成立了，进程从休眠中唤醒，但它被唤醒之后可能不是马上就被调度、马上就开始执行后面的代码，所以在这中间，有可能条件又不成立了，所以需要唤醒之后马上继续判断。</p>
+
+<p>而如果没有上面所说的<code class="language-plaintext highlighter-rouge">lk</code>锁，就可能发生，while判断条件不成立，进程准备进入休眠；但是这时候发生调度，另一个进程使得条件成立，想要唤醒进程，但这时候因为它还没休眠，所以找不到进程可以唤醒。再切换回原来的进程时，这个进程不知道条件已经成立了，它会进入休眠，并且之后再没有办法唤醒它。 因此，必须确保在条件判断和调用<code class="language-plaintext highlighter-rouge">sleep</code>是不会被<code class="language-plaintext highlighter-rouge">wakeup</code>打断的，即<code class="language-plaintext highlighter-rouge">wakeup</code>不可以在进程真正进入sleep之前被调用。这可以用锁来实现。</p>
+
+<div class="language-c highlighter-rouge"><div class="highlight"><table style="margin: 0px"><tbody><tr><td class="gutter"><pre>1<br/>2<br/>3<br/>4<br/>5<br/>6<br/>7<br/>8<br/>9<br/>10<br/>11<br/>12<br/>13<br/>14<br/>15<br/>16<br/>17<br/>18<br/>19<br/>20<br/>21<br/>22<br/>23<br/>24<br/>25</pre></td><td class="code"><pre class="highlight"><code><span class="c1">// Atomically release lock and sleep on chan.</span>
+<span class="c1">// Reacquires lock when awakened.</span>
+<span class="kt">void</span>
+<span class="nf">sleep</span><span class="p">(</span><span class="kt">void</span> <span class="o">*</span><span class="n">chan</span><span class="p">,</span> <span class="k">struct</span> <span class="n">spinlock</span> <span class="o">*</span><span class="n">lk</span><span class="p">)</span>
+<span class="p">{</span>
+<span class="k">struct</span> <span class="n">proc</span> <span class="o">*</span><span class="n">p</span> <span class="o">=</span> <span class="n">myproc</span><span class="p">();</span>
+<span class="c1">//调用sleep的进程</span>
+<span class="k">if</span><span class="p">(</span><span class="n">p</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span>
+<span class="n">panic</span><span class="p">(</span><span class="s">"sleep"</span><span class="p">);</span>
+<span class="k">if</span><span class="p">(</span><span class="n">lk</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span>
+<span class="n">panic</span><span class="p">(</span><span class="s">"sleep without lk"</span><span class="p">);</span>
+<span class="c1">//必须持有lk锁</span>
+<span class="c1">// Must acquire ptable.lock in order to</span>
+<span class="c1">// change p-&gt;state and then call sched.</span>
+<span class="c1">// Once we hold ptable.lock, we can be</span>
+<span class="c1">// guaranteed that we won't miss any wakeup</span>
+<span class="c1">// (wakeup runs with ptable.lock locked),</span>
+<span class="c1">// so it's okay to release lk.</span>
+<span class="c1">// 下面sleep必须修改ptable，把这个进程的状态改为SLEEPING,并把p-&gt;chan也就是休眠的等待事件改为</span>
+<span class="c1">//第一个参数chan，因此要比较传进来的第二个参数lk是不是ptable，如果是ptable，那进程就应该一直持有它，</span>
+<span class="c1">//不应该释放。</span>
+<span class="k">if</span><span class="p">(</span><span class="n">lk</span> <span class="o">!=</span> <span class="o">&amp;</span><span class="n">ptable</span><span class="p">.</span><span class="n">lock</span><span class="p">){</span> <span class="c1">//DOC: sleeplock0</span>
+<span class="n">acquire</span><span class="p">(</span><span class="o">&amp;</span><span class="n">ptable</span><span class="p">.</span><span class="n">lock</span><span class="p">);</span> <span class="c1">//DOC: sleeplock1</span>
+<span class="n">release</span><span class="p">(</span><span class="n">lk</span><span class="p">);</span>
+<span class="p">}</span>
+</code></pre></td></tr></tbody></table></div></div>
+
+<p><code class="language-plaintext highlighter-rouge">sleep</code>首先判断是否持有<code class="language-plaintext highlighter-rouge">lk</code>锁，否则报错。 然后，<code class="language-plaintext highlighter-rouge">sleep</code>需要释放<code class="language-plaintext highlighter-rouge">lk</code>锁并获得<code class="language-plaintext highlighter-rouge">ptable-&gt;lock</code>。这里有两种情况：</p>
+
+<ol>
+  <li><code class="language-plaintext highlighter-rouge">lk</code>不是<code class="language-plaintext highlighter-rouge">ptable-&gt;lock</code>，则因为<code class="language-plaintext highlighter-rouge">wakeup</code>函数也要求获得<code class="language-plaintext highlighter-rouge">ptable-&gt;lock</code>，所以释放<code class="language-plaintext highlighter-rouge">lk</code>是没问题的，<code class="language-plaintext highlighter-rouge">ptable-&gt;lock</code>代替了<code class="language-plaintext highlighter-rouge">lk</code>，保证不会出现“遗失的唤醒”问题。必须在释放<code class="language-plaintext highlighter-rouge">lk</code>之前，先获取<code class="language-plaintext highlighter-rouge">ptable.lock</code>，否则有可能在释放<code class="language-plaintext highlighter-rouge">lk</code>之后，获取<code class="language-plaintext highlighter-rouge">ptable.lock</code>之前，发生调度，另一个进程此时便可以调用<code class="language-plaintext highlighter-rouge">wakeup</code>。而之所以要获取<code class="language-plaintext highlighter-rouge">ptable-&gt;lock</code>是因为之后要对进程表进行访问、修改，并且要调用<code class="language-plaintext highlighter-rouge">sched</code>进入调度器。</li>
+  <li><code class="language-plaintext highlighter-rouge">lk</code>就是<code class="language-plaintext highlighter-rouge">ptable-&gt;lock</code>，则不需要任何操作。不可以先释放<code class="language-plaintext highlighter-rouge">ptable.lock</code>然后再重新获取，原因跟上面lk释放与ptable.lock获取的顺序不能调换的原因是一样的。</li>
+</ol>
+
+<p>然后进程就要进入休眠。</p>
+
+<div class="language-c highlighter-rouge"><div class="highlight"><table style="margin: 0px"><tbody><tr><td class="gutter"><pre>1<br/>2<br/>3<br/>4<br/>5<br/>6<br/>7<br/>8<br/>9<br/>10</pre></td><td class="code"><pre class="highlight"><code><span class="c1">// Go to sleep.</span>
+<span class="n">p</span><span class="o">-&gt;</span><span class="n">chan</span> <span class="o">=</span> <span class="n">chan</span><span class="p">;</span>         <span class="c1">//休眠等待信号，wakeup函数中在ptable中查找p-&gt;chan=chan并且状态为休眠的进程去唤醒。</span>
+<span class="n">p</span><span class="o">-&gt;</span><span class="n">state</span> <span class="o">=</span> <span class="n">SLEEPING</span><span class="p">;</span>    <span class="c1">//修改进程状态</span>
+<span class="n">sched</span><span class="p">();</span>              <span class="c1">//将控制权交给调度器</span>
+<span class="n">p</span><span class="o">-&gt;</span><span class="n">chan</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+<span class="c1">// Reacquire original lock.</span>
+<span class="k">if</span><span class="p">(</span><span class="n">lk</span> <span class="o">!=</span> <span class="o">&amp;</span><span class="n">ptable</span><span class="p">.</span><span class="n">lock</span><span class="p">){</span> <span class="c1">//DOC: sleeplock2</span>
+<span class="n">release</span><span class="p">(</span><span class="o">&amp;</span><span class="n">ptable</span><span class="p">.</span><span class="n">lock</span><span class="p">);</span>
+<span class="n">acquire</span><span class="p">(</span><span class="n">lk</span><span class="p">);</span>
+<span class="p">}</span>
+</code></pre></td></tr></tbody></table></div></div>
+
+<p>调用<code class="language-plaintext highlighter-rouge">sched</code>之后，该进程就被暂时挂起了，<code class="language-plaintext highlighter-rouge">sched</code>会将上下文切换到调度器，再从调度器切换到另外的进程。当这里的<code class="language-plaintext highlighter-rouge">sched</code>返回的时候，表明进程已经被唤醒。它要将等待条件清为0，然后重新获得<code class="language-plaintext highlighter-rouge">lk</code>锁。重新获得锁时，则不必先获得<code class="language-plaintext highlighter-rouge">lk</code>,再释放<code class="language-plaintext highlighter-rouge">ptable.lock</code>，因为此时进程已经从休眠中唤醒了，它不会担心在释放和重新获得之间，其他进程调用<code class="language-plaintext highlighter-rouge">wakeup</code>，其他进程是否在这中间调用<code class="language-plaintext highlighter-rouge">wakeup</code>对该进程是没有影响的。</p>
+
+<p>对应地，<code class="language-plaintext highlighter-rouge">wakup</code>函数从ptable中找到状态为SLEEPING并且在<code class="language-plaintext highlighter-rouge">chan</code>上休眠的进程（可能多个），将它的状态设置为RUNNABLE，这样它就可以被CPU的调度器调度。</p>
+
+<div class="language-c highlighter-rouge"><div class="highlight"><table style="margin: 0px"><tbody><tr><td class="gutter"><pre>1<br/>2<br/>3<br/>4<br/>5<br/>6<br/>7<br/>8<br/>9<br/>10<br/>11<br/>12<br/>13<br/>14<br/>15<br/>16<br/>17<br/>18<br/>19<br/>20</pre></td><td class="code"><pre class="highlight"><code><span class="c1">// Wake up all processes sleeping on chan.</span>
+<span class="c1">// The ptable lock must be held.</span>
+<span class="k">static</span> <span class="kt">void</span>
+<span class="nf">wakeup1</span><span class="p">(</span><span class="kt">void</span> <span class="o">*</span><span class="n">chan</span><span class="p">)</span>
+<span class="p">{</span>
+  <span class="k">struct</span> <span class="n">proc</span> <span class="o">*</span><span class="n">p</span><span class="p">;</span>
+
+  <span class="k">for</span><span class="p">(</span><span class="n">p</span> <span class="o">=</span> <span class="n">ptable</span><span class="p">.</span><span class="n">proc</span><span class="p">;</span> <span class="n">p</span> <span class="o">&lt;</span> <span class="o">&amp;</span><span class="n">ptable</span><span class="p">.</span><span class="n">proc</span><span class="p">[</span><span class="n">NPROC</span><span class="p">];</span> <span class="n">p</span><span class="o">++</span><span class="p">)</span>
+    <span class="k">if</span><span class="p">(</span><span class="n">p</span><span class="o">-&gt;</span><span class="n">state</span> <span class="o">==</span> <span class="n">SLEEPING</span> <span class="o">&amp;&amp;</span> <span class="n">p</span><span class="o">-&gt;</span><span class="n">chan</span> <span class="o">==</span> <span class="n">chan</span><span class="p">)</span>
+      <span class="n">p</span><span class="o">-&gt;</span><span class="n">state</span> <span class="o">=</span> <span class="n">RUNNABLE</span><span class="p">;</span>
+<span class="p">}</span>
+
+<span class="c1">// Wake up all processes sleeping on chan.</span>
+<span class="kt">void</span>
+<span class="nf">wakeup</span><span class="p">(</span><span class="kt">void</span> <span class="o">*</span><span class="n">chan</span><span class="p">)</span>
+<span class="p">{</span>
+  <span class="n">acquire</span><span class="p">(</span><span class="o">&amp;</span><span class="n">ptable</span><span class="p">.</span><span class="n">lock</span><span class="p">);</span>
+  <span class="n">wakeup1</span><span class="p">(</span><span class="n">chan</span><span class="p">);</span>
+  <span class="n">release</span><span class="p">(</span><span class="o">&amp;</span><span class="n">ptable</span><span class="p">.</span><span class="n">lock</span><span class="p">);</span>
+<span class="p">}</span>
+</code></pre></td></tr></tbody></table></div></div>
+
+<p><code class="language-plaintext highlighter-rouge">wakeup</code>是<code class="language-plaintext highlighter-rouge">wakeup1</code>的加锁版本。<code class="language-plaintext highlighter-rouge">wakeup</code>因为要访问并修改ptable，所以需要持有<code class="language-plaintext highlighter-rouge">ptable.lock</code>。<code class="language-plaintext highlighter-rouge">wakeup</code>作为系统调用让用户去调用时，操作系统而非用户要负责获取<code class="language-plaintext highlighter-rouge">ptable.lock</code>锁； 但在系统中，例如<code class="language-plaintext highlighter-rouge">exit</code>等函数也会调用<code class="language-plaintext highlighter-rouge">wakeup</code>，但在这之前它就已经获得了<code class="language-plaintext highlighter-rouge">ptable.lock</code>锁，所以也为内核提供了不加锁的<code class="language-plaintext highlighter-rouge">wakeup1</code>版本。</p>
+
+<hr />
+
+<h3 id="wait">wait</h3>
+
+<p>wait让父进程等待子进程结束，并回收子进程的资源。它返回退出的子进程的pid，如果没有子进程或其他错误情况，则返回-1.</p>
+
+<div class="language-c highlighter-rouge"><div class="highlight"><table style="margin: 0px"><tbody><tr><td class="gutter"><pre>1<br/>2<br/>3<br/>4<br/>5<br/>6<br/>7<br/>8<br/>9<br/>10<br/>11<br/>12<br/>13<br/>14<br/>15<br/>16<br/>17<br/>18<br/>19<br/>20<br/>21<br/>22<br/>23<br/>24<br/>25<br/>26<br/>27<br/>28<br/>29<br/>30<br/>31<br/>32<br/>33<br/>34<br/>35<br/>36<br/>37<br/>38<br/>39<br/>40<br/>41<br/>42<br/>43<br/>44<br/>45<br/>46<br/>47</pre></td><td class="code"><pre class="highlight"><code><span class="c1">// Wait for a child process to exit and return its pid.</span>
+<span class="c1">// Return -1 if this process has no children.</span>
+<span class="kt">int</span>
+<span class="nf">wait</span><span class="p">(</span><span class="kt">void</span><span class="p">)</span>
+<span class="p">{</span>
+	<span class="k">struct</span> <span class="n">proc</span> <span class="o">*</span><span class="n">p</span><span class="p">;</span>
+	<span class="kt">int</span> <span class="n">havekids</span><span class="p">,</span> <span class="n">pid</span><span class="p">;</span>
+	<span class="k">struct</span> <span class="n">proc</span> <span class="o">*</span><span class="n">curproc</span> <span class="o">=</span> <span class="n">myproc</span><span class="p">();</span>
+	<span class="n">acquire</span><span class="p">(</span><span class="o">&amp;</span><span class="n">ptable</span><span class="p">.</span><span class="n">lock</span><span class="p">);</span>
+    <span class="c1">//要遍历ptable中的所有进程，找到调用进程的一个子进程</span>
+    <span class="c1">//如果能够找到，需要修改该子进程的状态，因此要对ptable做出修改</span>
+    <span class="c1">//不允许两个进程同时访问ptable，因此要先占有ptable的锁才能对其进行访问和修改。</span>
+	<span class="k">for</span><span class="p">(;;){</span>
+        <span class="c1">// Scan through table looking for exited children.</span>
+        <span class="n">havekids</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+        <span class="k">for</span><span class="p">(</span><span class="n">p</span> <span class="o">=</span> <span class="n">ptable</span><span class="p">.</span><span class="n">proc</span><span class="p">;</span> <span class="n">p</span> <span class="o">&lt;</span> <span class="o">&amp;</span><span class="n">ptable</span><span class="p">.</span><span class="n">proc</span><span class="p">[</span><span class="n">NPROC</span><span class="p">];</span> <span class="n">p</span><span class="o">++</span><span class="p">){</span>
+        	<span class="k">if</span><span class="p">(</span><span class="n">p</span><span class="o">-&gt;</span><span class="n">parent</span> <span class="o">!=</span> <span class="n">curproc</span><span class="p">)</span>
+        		<span class="k">continue</span><span class="p">;</span>
+            <span class="c1">//找到了该进程的子进程</span>
+            <span class="n">havekids</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span> <span class="c1">//havekids表示调用的进程有子进程</span>
+            <span class="k">if</span><span class="p">(</span><span class="n">p</span><span class="o">-&gt;</span><span class="n">state</span> <span class="o">==</span> <span class="n">ZOMBIE</span><span class="p">){</span> <span class="c1">//有一个子进程调用了exit或因其他原因退出，处于ZOMBIE状态</span>
+                <span class="c1">// Found one.</span>
+                <span class="n">pid</span> <span class="o">=</span> <span class="n">p</span><span class="o">-&gt;</span><span class="n">pid</span><span class="p">;</span> <span class="c1">//准备返回该子进程的pid</span>
+                <span class="n">kfree</span><span class="p">(</span><span class="n">p</span><span class="o">-&gt;</span><span class="n">kstack</span><span class="p">);</span> <span class="c1">//释放子进程占用的内存空间，这里是释放子进程的内核栈</span>
+                <span class="n">p</span><span class="o">-&gt;</span><span class="n">kstack</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span> <span class="c1">//将进程内核栈底指针重置为0</span>
+                <span class="n">freevm</span><span class="p">(</span><span class="n">p</span><span class="o">-&gt;</span><span class="n">pgdir</span><span class="p">);</span> <span class="c1">//释放页表，释放所有用户空间所占据的物理页框</span>
+                <span class="n">p</span><span class="o">-&gt;</span><span class="n">pid</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span> <span class="c1">//接下来是将PCB全都重置为0</span>
+                <span class="n">p</span><span class="o">-&gt;</span><span class="n">parent</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+                <span class="n">p</span><span class="o">-&gt;</span><span class="n">name</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+                <span class="n">p</span><span class="o">-&gt;</span><span class="n">killed</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+                <span class="n">p</span><span class="o">-&gt;</span><span class="n">state</span> <span class="o">=</span> <span class="n">UNUSED</span><span class="p">;</span> <span class="c1">//该PCB状态变为UNUSED，之后调用allocproc的时候，这块PCB可能就会被分配给一个新的进程</span>
+                <span class="n">release</span><span class="p">(</span><span class="o">&amp;</span><span class="n">ptable</span><span class="p">.</span><span class="n">lock</span><span class="p">);</span> <span class="c1">//释放ptable锁</span>
+                <span class="k">return</span> <span class="n">pid</span><span class="p">;</span> <span class="c1">//返回退出的子进程的pid</span>
+   	 		<span class="p">}</span>
+		<span class="p">}</span>
+        <span class="c1">// ptable的遍历已经完成，到这里没有返回，说明没有子进程处于ZOMBIE</span>
+        <span class="c1">// No point waiting if we don't have any children.</span>
+        <span class="k">if</span><span class="p">(</span><span class="o">!</span><span class="n">havekids</span> <span class="o">||</span> <span class="n">curproc</span><span class="o">-&gt;</span><span class="n">killed</span><span class="p">){</span> <span class="c1">//如果该进程并没有子进程，或者该进程在wait的过程中被杀死（比如用ctrl+C等），那就不需要等待了，直接释放ptable锁，返回-1.</span>
+        	<span class="n">release</span><span class="p">(</span><span class="o">&amp;</span><span class="n">ptable</span><span class="p">.</span><span class="n">lock</span><span class="p">);</span>
+        	<span class="k">return</span> <span class="o">-</span><span class="mi">1</span><span class="p">;</span>
+		<span class="p">}</span>
+		<span class="c1">//否则，该进程有子进程， 但所有的子进程都还在运行，必须让该进程进入休眠，等待一个子进程的结束</span>
+		<span class="c1">// Wait for children to exit. (See wakeup1 call in proc_exit.)</span>
+		<span class="n">sleep</span><span class="p">(</span><span class="n">curproc</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">ptable</span><span class="p">.</span><span class="n">lock</span><span class="p">);</span>
+		<span class="c1">//调用sleep进入休眠。</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+</code></pre></td></tr></tbody></table></div></div>
+
+<p>wait()函数等待它的一个子进程终止。在exit()函数中，我们看到exit()只是关闭了进程打开的文件和从目录中退
+出，但仍然保留了进程的信息，进程占据的内存和PCB都没有被释放，只是处于ZOMBIE状态。进程信息和内存
+空间的释放由wait()来完成。</p>
+
+<p><code class="language-plaintext highlighter-rouge">wait</code>遍历过一次进程表，发现有子进程，但是都还没结束，那么它就调用<code class="language-plaintext highlighter-rouge">sleep(curproc, &amp;ptable.lock)</code>进入休眠。这个休眠会被子进程在<code class="language-plaintext highlighter-rouge">exit</code>中，调用<code class="language-plaintext highlighter-rouge">wakeup(myproc()-&gt;parent)</code>来唤醒。</p>
+
+<hr />
+
+<p><strong>Part 2 是如何在xv6中实现Round Robin调度情况统计，统计用户进程的周转、等待、执行时间。</strong></p>
+
+<p>下一篇： <a href="http://localhost:4000/lab report/2020/01/31/OS4-2/">Part 2</a></p>
+
+
+      
+    </div>
+
+    <div>
+      
+        
+
+      
+    </div>
+
+    <div>
+      
+        
+
+      
+    </div>
+
+    <div>
+      
+        
+
+      
+    </div>
+
+    <footer class="post-footer">
+      
+        <div class="post-tags">
+          
+            
+            <a href="/tag/#/OS" rel="tag"># OS</a>
+          
+            
+            <a href="/tag/#/xv6" rel="tag"># xv6</a>
+          
+            
+            <a href="/tag/#/scheduling" rel="tag"># scheduling</a>
+          
+        </div>
+      
+
+      
+      
+      
+      
+      
+
+      
+      
+        <div class="post-nav" id="post-nav-id">
+          <div class="post-nav-next post-nav-item">
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+              <a href="/lab%20report/2020/01/31/OS4-3/" rel="prev" title="OS操作系统实验：xv6调度(RR, 优先级调度, 优先级队列） 实现和分析 Part 3- xv6 优先级调度算法实现">
+                OS操作系统实验：xv6调度(RR, 优先级调度, 优先级队列） 实现和分析 Part 3- xv6 优先级调度算法实现 <i class="fa fa-chevron-right"></i>
+              </a>
+            
+          </div>
+        </div>
+      
+      
+
+      
+    </footer>
+  </article>
+
+  <div class="post-spread">
+    
+  </div>
+</div>
+
+
+          </div>
+          
+
+
+          
+  <div class="comments" id="comments">
+    
+      <div class="wildfire_thread"></div>
+    
+  </div>
+
+
+        </div>
+        
+          
+
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    <div class="sidebar-inner">
+
+      
+        
+        
+        
+
+
+
+
+
+
+
+      
+
+      
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap" >
+            Table of Contents
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview">
+            Overview
+          </li>
+        </ul>
+      
+
+      <section class="site-overview sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+          <img class="site-author-image" itemprop="image"
+               src="/assets/images/avatar.jpg"
+               alt="Shutong Chen" />
+          <p class="site-author-name" itemprop="name">Shutong Chen</p>
+           
+              <p class="site-description motion-element" itemprop="description">CS student in junior year, Fudan University</p>
+          
+        </div>
+        <nav class="site-state motion-element">
+
+          
+            <div class="site-state-item site-state-posts">
+              <a href="/archives/">
+                <span class="site-state-item-count">4</span>
+                <span class="site-state-item-name">posts</span>
+              </a>
+            </div>
+          
+
+          
+            
+            
+            <div class="site-state-item site-state-categories">
+              <a href="/categories/">
+                <span class="site-state-item-count">2</span>
+                <span class="site-state-item-name">categories</span>
+              </a>
+            </div>
+          
+
+          
+            
+            
+            <div class="site-state-item site-state-tags">
+              <a href="/tags/">
+                <span class="site-state-item-count">5</span>
+                <span class="site-state-item-name">tags</span>
+              </a>
+            </div>
+          
+
+        </nav>
+
+        
+        
+        
+          <div class="feed-link motion-element">
+            <a href="/atom.xml" rel="alternate">
+              <i class="fa fa-rss"></i>
+              RSS
+            </a>
+          </div>
+        
+
+        <div class="links-of-author motion-element">
+          
+            
+              
+              
+              <span class="links-of-author-item">
+                <a href="https://github.com/sillywutong" target="_blank" title="GitHub">
+                  
+                    <i class="fa fa-fw fa-github"></i>
+                  
+                  GitHub
+                </a>
+              </span>
+            
+              
+              
+              <span class="links-of-author-item">
+                <a href="https://weibo.com/sillywutong" target="_blank" title="微博">
+                  
+                    <i class="fa fa-fw fa-globe"></i>
+                  
+                  微博
+                </a>
+              </span>
+            
+          
+        </div>
+
+        
+        
+
+        
+        
+
+        
+
+
+      </section>
+
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+            
+            
+            
+
+
+
+
+
+
+
+
+            
+              <div class="post-toc-content">
+    <ol class=nav>
+      <li class="nav-item nav-level-1"> <a class="nav-link" href="#lab-4调度"> <span class="nav-number">1</span> <span class="nav-text">Lab 4：调度</span> </a> <ol class="nav-child"> <li class="nav-item nav-level-2"> <a class="nav-link" href="#调度"> <span class="nav-number">1.1</span> <span class="nav-text">调度</span> </a> </li> <li class="nav-item nav-level-2"> <a class="nav-link" href="#todo1-阅读procc中的函数"> <span class="nav-number">1.2</span> <span class="nav-text">TODO1: 阅读proc.c中的函数</span> </a> <ol class="nav-child"> <li class="nav-item nav-level-3"> <a class="nav-link" href="#yield"> <span class="nav-number">1.2.1</span> <span class="nav-text">yield</span> </a> </li> <li class="nav-item nav-level-3"> <a class="nav-link" href="#sched"> <span class="nav-number">1.2.2</span> <span class="nav-text">sched</span> </a> </li> <li class="nav-item nav-level-3"> <a class="nav-link" href="#scheduler"> <span class="nav-number">1.2.3</span> <span class="nav-text">scheduler</span> </a> </li> <li class="nav-item nav-level-3"> <a class="nav-link" href="#睡眠与唤醒"> <span class="nav-number">1.2.4</span> <span class="nav-text">睡眠与唤醒</span> </a> </li> <li class="nav-item nav-level-3"> <a class="nav-link" href="#wait"> <span class="nav-number">1.2.5</span> <span class="nav-text">wait</span> </a> </li> </ol> </li> </ol> </li>
+    </ol>
+  </div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
+      
+
+      
+
+    </div>
+  </aside>
+
+        
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright" >
+  
+  
+  &copy; 
+  <span itemprop="copyrightYear">2020</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Shutong Chen</span>
+</div>
+
+
+<div class="powered-by">
+  Powered by <a class="theme-link" href="https://jekyllrb.com">Jekyll</a>
+</div>
+
+<div class="theme-info">
+  Theme -
+  <a class="theme-link" href="https://github.com/simpleyyt/jekyll-theme-next">
+    NexT.Muse
+  </a>
+</div>
+
+
+        
+
+        
+      </div>
+    </footer>
+
+    
+      <div class="back-to-top">
+        <i class="fa fa-arrow-up"></i>
+        
+      </div>
+    
+
+  </div>
+
+  
+
+<script type="text/javascript">
+  if (Object.prototype.toString.call(window.Promise) !== '[object Function]') {
+    window.Promise = null;
+  }
+</script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+   
+  
+  
+  
+  
+  
+  <script type="text/javascript" src="/assets/lib/jquery/index.js?v=2.1.3"></script>
+
+  
+  
+  
+  
+  
+  <script type="text/javascript" src="/assets/lib/fastclick/lib/fastclick.min.js?v=1.0.6"></script>
+
+  
+  
+  
+  
+  
+  <script type="text/javascript" src="/assets/lib/jquery_lazyload/jquery.lazyload.js?v=1.9.7"></script>
+
+  
+  
+  
+  
+  
+  <script type="text/javascript" src="/assets/lib/velocity/velocity.min.js?v=1.2.1"></script>
+
+  
+  
+  
+  
+  
+  <script type="text/javascript" src="/assets/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+
+  
+  
+  
+  
+  
+  <script type="text/javascript" src="/assets/lib/fancybox/source/jquery.fancybox.pack.js?v=2.1.5"></script>
+
+
+  
+
+
+  <script type="text/javascript" src="/assets/js/src/utils.js?v=5.1.1"></script>
+
+  <script type="text/javascript" src="/assets/js/src/motion.js?v=5.1.1"></script>
+
+
+
+  
+  
+
+  <script type="text/javascript" src="/assets/js/src/scrollspy.js?v=5.1.1"></script>
+<script type="text/javascript" src="/assets/js/src/post-details.js?v=5.1.1"></script>
+
+
+  
+
+
+  <script type="text/javascript" src="/assets/js/src/bootstrap.js?v=5.1.1"></script>
+
+
+
+  
+
+
+  
+
+
+
+
+	
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+  
+
+    
+
+  
+
+
+
+
+
+  <script type="text/javascript">
+    var wildfireConfig = () => ({
+      
+      useDev: true,
+      
+      
+      version: '0.5.6',
+      
+      databaseProvider: 'firebase',
+      databaseConfig: {
+        
+        apiKey: 'AIzaSyBfR8WwkHnr8Np6SCmYBIelDeLsg1O9reE',
+        authDomain: 'githubblog-b6de2.firebaseapp.com',
+        databaseURL: 'https://githubblog-b6de2.firebaseio.com',
+        projectId: 'githubblog-b6de2',
+        storageBucket: 'githubblog-b6de2.appspot.com',
+        messagingSenderId: '812229193086'
+        
+      },
+      pageURL: 'http://localhost:4000/lab%20report/2020/01/31/OS4/',
+      pageTitle: 'OS操作系统实验：xv6调度(RR, 优先级调度, 优先级队列） 实现和分析 Part 1- xv6代码讲解',
+      
+      theme: 'light',
+      
+      
+      locale: 'en',
+      
+      
+    });
+  </script>
+  
+    
+    <script src="https://unpkg.com/wildfire-comment@1.2.5"></script>
+    
+  
+  <script src="https://unpkg.com/wf-count"></script>
+
+
+
+  
+
+
+  <script type="text/javascript">
+    // Popup Window;
+    var isfetched = false;
+    var isXml = true;
+    // Search DB path;
+    var search_path = "";
+    if (search_path.length === 0) {
+      search_path = "search.xml";
+    } else if (/json$/i.test(search_path)) {
+      isXml = false;
+    }
+    var path = "/" + search_path;
+    // monitor main search box;
+
+    var onPopupClose = function (e) {
+      $('.popup').hide();
+      $('#local-search-input').val('');
+      $('.search-result-list').remove();
+      $('#no-result').remove();
+      $(".local-search-pop-overlay").remove();
+      $('body').css('overflow', '');
+    }
+
+    function proceedsearch() {
+      $("body")
+        .append('<div class="search-popup-overlay local-search-pop-overlay"></div>')
+        .css('overflow', 'hidden');
+      $('.search-popup-overlay').click(onPopupClose);
+      $('.popup').toggle();
+      var $localSearchInput = $('#local-search-input');
+      $localSearchInput.attr("autocapitalize", "none");
+      $localSearchInput.attr("autocorrect", "off");
+      $localSearchInput.focus();
+    }
+
+    // search function;
+    var searchFunc = function(path, search_id, content_id) {
+      'use strict';
+
+      // start loading animation
+      $("body")
+        .append('<div class="search-popup-overlay local-search-pop-overlay">' +
+          '<div id="search-loading-icon">' +
+          '<i class="fa fa-spinner fa-pulse fa-5x fa-fw"></i>' +
+          '</div>' +
+          '</div>')
+        .css('overflow', 'hidden');
+      $("#search-loading-icon").css('margin', '20% auto 0 auto').css('text-align', 'center');
+
+      $.ajax({
+        url: path,
+        dataType: isXml ? "xml" : "json",
+        async: true,
+        success: function(res) {
+          // get the contents from search data
+          isfetched = true;
+          $('.popup').detach().appendTo('.header-inner');
+          var datas = isXml ? $("entry", res).map(function() {
+            return {
+              title: $("title", this).text(),
+              content: $("content",this).text(),
+              url: $("url" , this).text()
+            };
+          }).get() : res;
+          var input = document.getElementById(search_id);
+          var resultContent = document.getElementById(content_id);
+          var inputEventFunction = function() {
+            var searchText = input.value.trim().toLowerCase();
+            var keywords = searchText.split(/[\s\-]+/);
+            if (keywords.length > 1) {
+              keywords.push(searchText);
+            }
+            var resultItems = [];
+            if (searchText.length > 0) {
+              // perform local searching
+              datas.forEach(function(data) {
+                var isMatch = false;
+                var hitCount = 0;
+                var searchTextCount = 0;
+                var title = data.title.trim();
+                var titleInLowerCase = title.toLowerCase();
+                var content = data.content.trim().replace(/<[^>]+>/g,"");
+                var contentInLowerCase = content.toLowerCase();
+                var articleUrl = decodeURIComponent(data.url);
+                var indexOfTitle = [];
+                var indexOfContent = [];
+                // only match articles with not empty titles
+                if(title != '') {
+                  keywords.forEach(function(keyword) {
+                    function getIndexByWord(word, text, caseSensitive) {
+                      var wordLen = word.length;
+                      if (wordLen === 0) {
+                        return [];
+                      }
+                      var startPosition = 0, position = [], index = [];
+                      if (!caseSensitive) {
+                        text = text.toLowerCase();
+                        word = word.toLowerCase();
+                      }
+                      while ((position = text.indexOf(word, startPosition)) > -1) {
+                        index.push({position: position, word: word});
+                        startPosition = position + wordLen;
+                      }
+                      return index;
+                    }
+
+                    indexOfTitle = indexOfTitle.concat(getIndexByWord(keyword, titleInLowerCase, false));
+                    indexOfContent = indexOfContent.concat(getIndexByWord(keyword, contentInLowerCase, false));
+                  });
+                  if (indexOfTitle.length > 0 || indexOfContent.length > 0) {
+                    isMatch = true;
+                    hitCount = indexOfTitle.length + indexOfContent.length;
+                  }
+                }
+
+                // show search results
+
+                if (isMatch) {
+                  // sort index by position of keyword
+
+                  [indexOfTitle, indexOfContent].forEach(function (index) {
+                    index.sort(function (itemLeft, itemRight) {
+                      if (itemRight.position !== itemLeft.position) {
+                        return itemRight.position - itemLeft.position;
+                      } else {
+                        return itemLeft.word.length - itemRight.word.length;
+                      }
+                    });
+                  });
+
+                  // merge hits into slices
+
+                  function mergeIntoSlice(text, start, end, index) {
+                    var item = index[index.length - 1];
+                    var position = item.position;
+                    var word = item.word;
+                    var hits = [];
+                    var searchTextCountInSlice = 0;
+                    while (position + word.length <= end && index.length != 0) {
+                      if (word === searchText) {
+                        searchTextCountInSlice++;
+                      }
+                      hits.push({position: position, length: word.length});
+                      var wordEnd = position + word.length;
+
+                      // move to next position of hit
+
+                      index.pop();
+                      while (index.length != 0) {
+                        item = index[index.length - 1];
+                        position = item.position;
+                        word = item.word;
+                        if (wordEnd > position) {
+                          index.pop();
+                        } else {
+                          break;
+                        }
+                      }
+                    }
+                    searchTextCount += searchTextCountInSlice;
+                    return {
+                      hits: hits,
+                      start: start,
+                      end: end,
+                      searchTextCount: searchTextCountInSlice
+                    };
+                  }
+
+                  var slicesOfTitle = [];
+                  if (indexOfTitle.length != 0) {
+                    slicesOfTitle.push(mergeIntoSlice(title, 0, title.length, indexOfTitle));
+                  }
+
+                  var slicesOfContent = [];
+                  while (indexOfContent.length != 0) {
+                    var item = indexOfContent[indexOfContent.length - 1];
+                    var position = item.position;
+                    var word = item.word;
+                    // cut out 100 characters
+                    var start = position - 20;
+                    var end = position + 80;
+                    if(start < 0){
+                      start = 0;
+                    }
+                    if (end < position + word.length) {
+                      end = position + word.length;
+                    }
+                    if(end > content.length){
+                      end = content.length;
+                    }
+                    slicesOfContent.push(mergeIntoSlice(content, start, end, indexOfContent));
+                  }
+
+                  // sort slices in content by search text's count and hits' count
+
+                  slicesOfContent.sort(function (sliceLeft, sliceRight) {
+                    if (sliceLeft.searchTextCount !== sliceRight.searchTextCount) {
+                      return sliceRight.searchTextCount - sliceLeft.searchTextCount;
+                    } else if (sliceLeft.hits.length !== sliceRight.hits.length) {
+                      return sliceRight.hits.length - sliceLeft.hits.length;
+                    } else {
+                      return sliceLeft.start - sliceRight.start;
+                    }
+                  });
+
+                  // select top N slices in content
+
+                  var upperBound = parseInt('1');
+                  if (upperBound >= 0) {
+                    slicesOfContent = slicesOfContent.slice(0, upperBound);
+                  }
+
+                  // highlight title and content
+
+                  function highlightKeyword(text, slice) {
+                    var result = '';
+                    var prevEnd = slice.start;
+                    slice.hits.forEach(function (hit) {
+                      result += text.substring(prevEnd, hit.position);
+                      var end = hit.position + hit.length;
+                      result += '<b class="search-keyword">' + text.substring(hit.position, end) + '</b>';
+                      prevEnd = end;
+                    });
+                    result += text.substring(prevEnd, slice.end);
+                    return result;
+                  }
+
+                  var resultItem = '';
+
+                  if (slicesOfTitle.length != 0) {
+                    resultItem += "<li><a href='" + articleUrl + "' class='search-result-title'>" + highlightKeyword(title, slicesOfTitle[0]) + "</a>";
+                  } else {
+                    resultItem += "<li><a href='" + articleUrl + "' class='search-result-title'>" + title + "</a>";
+                  }
+
+                  slicesOfContent.forEach(function (slice) {
+                    resultItem += "<a href='" + articleUrl + "'>" +
+                      "<p class=\"search-result\">" + highlightKeyword(content, slice) +
+                      "...</p>" + "</a>";
+                  });
+
+                  resultItem += "</li>";
+                  resultItems.push({
+                    item: resultItem,
+                    searchTextCount: searchTextCount,
+                    hitCount: hitCount,
+                    id: resultItems.length
+                  });
+                }
+              })
+            };
+            if (keywords.length === 1 && keywords[0] === "") {
+              resultContent.innerHTML = '<div id="no-result"><i class="fa fa-search fa-5x" /></div>'
+            } else if (resultItems.length === 0) {
+              resultContent.innerHTML = '<div id="no-result"><i class="fa fa-frown-o fa-5x" /></div>'
+            } else {
+              resultItems.sort(function (resultLeft, resultRight) {
+                if (resultLeft.searchTextCount !== resultRight.searchTextCount) {
+                  return resultRight.searchTextCount - resultLeft.searchTextCount;
+                } else if (resultLeft.hitCount !== resultRight.hitCount) {
+                  return resultRight.hitCount - resultLeft.hitCount;
+                } else {
+                  return resultRight.id - resultLeft.id;
+                }
+              });
+              var searchResultList = '<ul class=\"search-result-list\">';
+              resultItems.forEach(function (result) {
+                searchResultList += result.item;
+              })
+              searchResultList += "</ul>";
+              resultContent.innerHTML = searchResultList;
+            }
+          }
+
+          if ('auto' === 'auto') {
+            input.addEventListener('input', inputEventFunction);
+          } else {
+            $('.search-icon').click(inputEventFunction);
+            input.addEventListener('keypress', function (event) {
+              if (event.keyCode === 13) {
+                inputEventFunction();
+              }
+            });
+          }
+
+          // remove loading animation
+          $(".local-search-pop-overlay").remove();
+          $('body').css('overflow', '');
+
+          proceedsearch();
+        }
+      });
+    }
+
+    // handle and trigger popup window;
+    $('.popup-trigger').click(function(e) {
+      e.stopPropagation();
+      if (isfetched === false) {
+        searchFunc(path, 'local-search-input', 'local-search-result');
+      } else {
+        proceedsearch();
+      };
+    });
+
+    $('.popup-btn-close').click(onPopupClose);
+    $('.popup').click(function(e){
+      e.stopPropagation();
+    });
+    $(document).on('keyup', function (event) {
+      var shouldDismissSearchPopup = event.which === 27 &&
+        $('.search-popup').is(':visible');
+      if (shouldDismissSearchPopup) {
+        onPopupClose();
+      }
+    });
+  </script>
+
+
+
+
+
+  
+
+  
+  <script src="https://cdn1.lncld.net/static/js/av-core-mini-0.6.1.js"></script>
+  <script>AV.initialize("Jrde1fjYIi1vvv2280DCd6C2-gzGzoHsz", "VXnQp5diaS1YaLt2pjmWxc8W");</script>
+  <script>
+    function showTime(Counter) {
+      var query = new AV.Query(Counter);
+      var entries = [];
+      var $visitors = $(".leancloud_visitors");
+
+      $visitors.each(function () {
+        entries.push( $(this).attr("id").trim() );
+      });
+
+      query.containedIn('url', entries);
+      query.find()
+        .done(function (results) {
+          var COUNT_CONTAINER_REF = '.leancloud-visitors-count';
+
+          if (results.length === 0) {
+            $visitors.find(COUNT_CONTAINER_REF).text(0);
+            return;
+          }
+
+          for (var i = 0; i < results.length; i++) {
+            var item = results[i];
+            var url = item.get('url');
+            var time = item.get('time');
+            var element = document.getElementById(url);
+
+            $(element).find(COUNT_CONTAINER_REF).text(time);
+          }
+          for(var i = 0; i < entries.length; i++) {
+            var url = entries[i];
+            var element = document.getElementById(url);
+            var countSpan = $(element).find(COUNT_CONTAINER_REF);
+            if( countSpan.text() == '') {
+              countSpan.text(0);
+            }
+          }
+        })
+        .fail(function (object, error) {
+          console.log("Error: " + error.code + " " + error.message);
+        });
+    }
+
+    function addCount(Counter) {
+      var $visitors = $(".leancloud_visitors");
+      var url = $visitors.attr('id').trim();
+      var title = $visitors.attr('data-flag-title').trim();
+      var query = new AV.Query(Counter);
+
+      query.equalTo("url", url);
+      query.find({
+        success: function(results) {
+          if (results.length > 0) {
+            var counter = results[0];
+            counter.fetchWhenSave(true);
+            counter.increment("time");
+            counter.save(null, {
+              success: function(counter) {
+                var $element = $(document.getElementById(url));
+                $element.find('.leancloud-visitors-count').text(counter.get('time'));
+              },
+              error: function(counter, error) {
+                console.log('Failed to save Visitor num, with error message: ' + error.message);
+              }
+            });
+          } else {
+            var newcounter = new Counter();
+            /* Set ACL */
+            var acl = new AV.ACL();
+            acl.setPublicReadAccess(true);
+            acl.setPublicWriteAccess(true);
+            newcounter.setACL(acl);
+            /* End Set ACL */
+            newcounter.set("title", title);
+            newcounter.set("url", url);
+            newcounter.set("time", 1);
+            newcounter.save(null, {
+              success: function(newcounter) {
+                var $element = $(document.getElementById(url));
+                $element.find('.leancloud-visitors-count').text(newcounter.get('time'));
+              },
+              error: function(newcounter, error) {
+                console.log('Failed to create');
+              }
+            });
+          }
+        },
+        error: function(error) {
+          console.log('Error:' + error.code + " " + error.message);
+        }
+      });
+    }
+
+    $(function() {
+      var Counter = AV.Object.extend("Counter");
+      if ($('.leancloud_visitors').length == 1) {
+        addCount(Counter);
+      } else if ($('.post-title-link').length > 1) {
+        showTime(Counter);
+      }
+    });
+  </script>
+
+
+
+  
+
+  
+  
+
+
+  
+  
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({
+        tex2jax: {
+          inlineMath: [ ['$','$'], ["\\(","\\)"]  ],
+          processEscapes: true,
+          skipTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code']
+        }
+      });
+    </script>
+
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Queue(function() {
+        var all = MathJax.Hub.getAllJax(), i;
+        for (i=0; i < all.length; i += 1) {
+          all[i].SourceElement().parentNode.className += ' has-jax';
+        }
+      });
+    </script>
+    <script type="text/javascript" src="//cdn.bootcss.com/mathjax/2.7.1/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
+  
+
+
+  
+
+  
+
+</body>
+</html>
+

@@ -1,0 +1,2074 @@
+
+<!doctype html>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<html class="theme-next muse use-motion" lang="en">
+<head>
+  <meta charset="UTF-8"/>
+<meta http-equiv="X-UA-Compatible" content="IE=edge" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1"/>
+
+
+
+
+
+
+
+
+
+<meta http-equiv="Cache-Control" content="no-transform" />
+<meta http-equiv="Cache-Control" content="no-siteapp" />
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+  <link href="/assets/lib/fancybox/source/jquery.fancybox.css?v=2.1.5" rel="stylesheet" type="text/css" />
+
+
+
+
+  
+  
+  
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+    
+    
+    <link href="//fonts.googleapis.com/css?family=Lato:300,300italic,400,400italic,700,700italic&subset=latin,latin-ext" rel="stylesheet" type="text/css">
+  
+
+
+
+
+
+
+<link href="/assets/lib/font-awesome/css/font-awesome.min.css?v=4.6.2" rel="stylesheet" type="text/css" />
+
+<link href="/assets/css/main.css?v=5.1.1" rel="stylesheet" type="text/css" />
+
+
+  <meta name="keywords" content="OS,xv6,scheduling," />
+
+
+
+
+
+  <link rel="alternate" href="/atom.xml" title="Shutong Chen's Blog" type="application/atom+xml" />
+
+
+
+
+  <link rel="shortcut icon" type="image/x-icon" href="/assets/favicon.ico?v=5.1.1" />
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<meta name="description" content="上一篇： Part 2 RR调度周转、等待时间等的统计 第一篇： Part 1 xv6调度代码讲解 TODO3: 实现优先级调度算法 基于优先级的调度算法是一类算法，基本思想是为每一个进程赋予不同的优先级，在调度时优先选择优先级最高的进程来调度。优先级调度有许多种，大致可以分为：">
+<meta name="keywords" content="OS, xv6, scheduling">
+<meta property="og:type" content="article">
+<meta property="og:title" content="OS操作系统实验：xv6调度(RR, 优先级调度, 优先级队列） 实现和分析 Part 3- xv6 优先级调度算法实现">
+<meta property="og:url" content="http://localhost:4000/lab%20report/2020/01/31/OS4-3/">
+<meta property="og:site_name" content="Shutong Chen's Blog">
+<meta property="og:description" content="上一篇： Part 2 RR调度周转、等待时间等的统计 第一篇： Part 1 xv6调度代码讲解 TODO3: 实现优先级调度算法 基于优先级的调度算法是一类算法，基本思想是为每一个进程赋予不同的优先级，在调度时优先选择优先级最高的进程来调度。优先级调度有许多种，大致可以分为：">
+<meta property="og:locale" content="en">
+<meta property="og:image" content="http://localhost:4000/assets/images/report/oslab43-1.png">
+<meta property="og:image" content="/assets/images/report/oslab43-3.png">
+<meta property="og:image" content="/assets/images/report/oslab43-4.png">
+<meta property="og:image" content="/assets/images/report/oslab43-5.png">
+<meta property="og:image" content="/assets/images/report/oslab43-6.png">
+<meta property="og:image" content="/assets/images/report/oslab43-2.png">
+<meta property="og:image" content="/assets/images/report/oslab43-7.png">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="OS操作系统实验：xv6调度(RR, 优先级调度, 优先级队列） 实现和分析 Part 3- xv6 优先级调度算法实现">
+<meta name="twitter:description" content="上一篇： Part 2 RR调度周转、等待时间等的统计 第一篇： Part 1 xv6调度代码讲解 TODO3: 实现优先级调度算法 基于优先级的调度算法是一类算法，基本思想是为每一个进程赋予不同的优先级，在调度时优先选择优先级最高的进程来调度。优先级调度有许多种，大致可以分为：">
+<meta name="twitter:image" content="http://localhost:4000/assets/images/report/oslab43-1.png">
+
+
+<script type="text/javascript" id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '',
+    scheme: 'Muse',
+    sidebar: {"position":"right","display":"post","offset":12,"offset_float":0,"b2t":false,"scrollpercent":false},
+    fancybox: true,
+    motion: true,
+    duoshuo: {
+      userId: '0',
+      author: 'Author'
+    },
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    }
+  };
+</script>
+
+
+
+  <link rel="canonical" href="http://localhost:4000/"/>
+
+
+
+
+
+  <title>OS操作系统实验：xv6调度(RR, 优先级调度, 优先级队列） 实现和分析 Part 3- xv6 优先级调度算法实现 | Shutong Chen's Blog</title>
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" lang="en">
+
+  
+  
+
+  <div class="container sidebar-position-right page-post-detail ">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"> <div class="site-brand-wrapper">
+  <div class="site-meta ">
+    
+
+    <div class="custom-logo-site-title">
+      <a href="/"  class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">Shutong Chen's Blog</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+      
+        <p class="site-subtitle"></p>
+      
+  </div>
+
+  <div class="site-nav-toggle">
+    <button>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+<nav class="site-nav">
+  
+
+  
+    <ul id="menu" class="menu">
+      
+        
+        
+        
+        <li class="menu-item menu-item-home">
+          <a href="/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-home"></i> <br />
+            
+            Home
+          </a>
+        </li>
+      
+        
+        
+        
+        <li class="menu-item menu-item-categories">
+          <a href="/categories/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-th"></i> <br />
+            
+            Categories
+          </a>
+        </li>
+      
+        
+        
+        
+        <li class="menu-item menu-item-archives">
+          <a href="/archives/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-archive"></i> <br />
+            
+            Archives
+          </a>
+        </li>
+      
+        
+        
+        
+        <li class="menu-item menu-item-tags">
+          <a href="/tags/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-tags"></i> <br />
+            
+            Tags
+          </a>
+        </li>
+      
+
+      
+        <li class="menu-item menu-item-search">
+          
+            <a href="javascript:;" class="popup-trigger">
+          
+            
+              <i class="menu-item-icon fa fa-search fa-fw"></i> <br />
+            
+            Search
+          </a>
+        </li>
+      
+    </ul>
+  
+
+  
+    <div class="site-search">
+      
+  <div class="popup search-popup local-search-popup">
+  <div class="local-search-header clearfix">
+    <span class="search-icon">
+      <i class="fa fa-search"></i>
+    </span>
+    <span class="popup-btn-close">
+      <i class="fa fa-times-circle"></i>
+    </span>
+    <div class="local-search-input-wrapper">
+      <input autocomplete="off"
+             placeholder="Searching..." spellcheck="false"
+             type="text" id="local-search-input">
+    </div>
+  </div>
+  <div id="local-search-result"></div>
+</div>
+
+
+
+    </div>
+  
+</nav>
+
+
+
+ </div>
+    </header>
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+<div id="posts" class="posts-expand">
+  
+  
+
+  
+
+  
+  
+  
+
+  <article class="post post-type- " itemscope itemtype="http://schema.org/Article">
+    <link itemprop="mainEntityOfPage" href="http://localhost:4000/lab%20report/2020/01/31/OS4-3/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="Shutong Chen">
+      <meta itemprop="description" content="">
+      <meta itemprop="image" content="/assets/images/avatar.jpg">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Shutong Chen's Blog">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h1 class="post-title" itemprop="name headline">
+          
+          
+            OS操作系统实验：xv6调度(RR, 优先级调度, 优先级队列） 实现和分析 Part 3- xv6 优先级调度算法实现
+          
+        </h1>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">Posted on</span>
+              
+              <time title="Post created" itemprop="dateCreated datePublished" datetime="2020-01-31T00:00:00+08:00">
+                2020-01-31
+              </time>
+            
+
+            
+              <span class="post-meta-divider">|</span>
+            
+
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-check-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">Post modified</span>
+              
+              <time title="Post modified" itemprop="dateModified" datetime="">
+                
+              </time>
+            
+          </span>
+
+          
+            <span class="post-category" >
+            
+              <span class="post-meta-divider">|</span>
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">In</span>
+              
+              
+                
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/category/#/Lab%20Report" itemprop="url" rel="index">
+                    <span itemprop="name">Lab Report</span>
+                  </a>
+                </span>
+
+                
+                
+              
+            </span>
+          
+
+          
+            
+              <span class="post-comments-count">
+                <span class="post-meta-divider">|</span>
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-comment-o"></i>
+                </span>
+                <a href="/lab%20report/2020/01/31/OS4-3/#comments" itemprop="discussionUrl">
+                  <span class="post-comments-count wf-count-unit" wf-page-url="http://localhost:4000/lab%20report/2020/01/31/OS4-3/" itemprop="commentCount"></span>
+                </a>
+              </span>
+            
+          
+
+          
+          
+             <span id="/lab%20report/2020/01/31/OS4-3/" class="leancloud_visitors" data-flag-title="OS操作系统实验：xv6调度(RR, 优先级调度, 优先级队列） 实现和分析 Part 3- xv6 优先级调度算法实现">
+               <span class="post-meta-divider">|</span>
+               <span class="post-meta-item-icon">
+                 <i class="fa fa-eye"></i>
+               </span>
+               
+                 <span class="post-meta-item-text">Visitors </span>
+               
+                 <span class="leancloud-visitors-count"></span>
+             </span>
+          
+
+          
+
+          
+
+          
+            
+                <div class="post-description">
+                    
+                </div>
+            
+          
+
+        </div>
+      </header>
+    
+
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        
+  
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  <p>上一篇： <a href="http://localhost:4000/lab report/2020/01/31/OS4-2/">Part 2 RR调度周转、等待时间等的统计</a>
+第一篇： <a href="http://localhost:4000/lab report/2020/01/31/OS4/">Part 1 xv6调度代码讲解</a></p>
+
+<h2 id="todo3--实现优先级调度算法">TODO3:  实现优先级调度算法</h2>
+
+<p>基于优先级的调度算法是一类算法，基本思想是为每一个进程赋予不同的优先级，在调度时优先选择优先级最高的进程来调度。优先级调度有许多种，大致可以分为：</p>
+
+<!--more-->
+
+<ul>
+  <li>
+    <p>非抢占式的优先级调度：</p>
+
+    <p>非抢占式的优先级调度算法中，每个进程只在初始时赋予一个优先级，在运行过程中不会被改变。每一次重新调度时，选择最高优先级的一个进程，将它运行完毕，然后再选择另外一个进程开始运行。一个进程在运行过程中如果有更高优先级的进程到来，它不会被打断，只是将该进程放到等待队列的队首。</p>
+
+    <p>xv6是开启抢占的，进程会被时钟中断打断，然后调度器选择另外一个进程（如果有的话）来代替它。</p>
+  </li>
+  <li>
+    <p>抢占式优先级调度：</p>
+
+    <p>抢占式优先级调度中，如果进程运行过程有更高优先级的进程到来，当它运行完这个时间片，就会被抢占。进程被赋予一个初始优先级，但这个优先级是可变的。具体的实现也有多种：</p>
+
+    <ol>
+      <li>
+        <p>静态优先级调度：</p>
+
+        <p>静态优先级调度指的是进程最初有一个优先级，运行过程中可以通过系统调用改变这个优先级，但是不会随着等待时间或运行时间的增加而自动改变。</p>
+      </li>
+      <li>
+        <p>动态优先级调度：</p>
+
+        <p>进程最初被指定一个优先级，同样也可以通过系统调用改变。为了惩罚执行时间较长的进程，优先级会随着运行时间增加而逐渐降低。</p>
+      </li>
+      <li>
+        <p>多级反馈队列调度：</p>
+
+        <p>在系统中设置每个优先级对应的等待队列，进程初始化时进入某个队列。调度时，首先从最高优先级队列中找进程，只有当更高优先级队列为空时，才会调度某个低优先级队列中的进程。 同一个优先级的进程按FCFS调度。</p>
+
+        <p>多级反馈队列也有不同的实现。静态实现时，进程优先级不在运行过程中自动改变；动态实现时，可以让进程每运行完k个时间片，就下降到低一级的等待队列，一段时间后，再将进程提高到最高优先级。这样，既可以充分考虑IO-bound、CPU-bound进程的不同特性，又考虑到进程运行过程中IO-bound到CPU-bound的动态转变，减少进程饥饿的发生。</p>
+
+        <p><img src="http://localhost:4000/assets/images/report/oslab43-1.png" alt="image-20191115165057350" style="zoom:67%;" /></p>
+      </li>
+    </ol>
+  </li>
+</ul>
+
+<p>我将实现静态优先级调度和静态的多级反馈队列调度。</p>
+
+<h3 id="静态优先级调度">静态优先级调度</h3>
+
+<p>静态优先级调度是为每个进程赋予一个初始优先级，用户可以指定优先级。在每次重新调度时，遍历整个进程表，找到状态为<code class="language-plaintext highlighter-rouge">RUNNABLE</code>且优先级最高的进程来运行。</p>
+
+<p>优先级的范围是<code class="language-plaintext highlighter-rouge">[1,4]</code>, 数字越低代表优先级越高。</p>
+
+<p>首先为进程添加<code class="language-plaintext highlighter-rouge">priority</code>变量：</p>
+
+<div class="language-c highlighter-rouge"><div class="highlight"><table style="margin: 0px"><tbody><tr><td class="gutter"><pre>1<br/>2<br/>3<br/>4<br/>5<br/>6<br/>7<br/>8<br/>9</pre></td><td class="code"><pre class="highlight"><code><span class="c1">// Per-process state</span>
+<span class="k">struct</span> <span class="n">proc</span> <span class="p">{</span>
+  <span class="n">uint</span> <span class="n">sz</span><span class="p">;</span>                     <span class="c1">// Size of process memory (bytes)</span>
+  <span class="n">pde_t</span><span class="o">*</span> <span class="n">pgdir</span><span class="p">;</span>                <span class="c1">// Page table</span>
+  <span class="kt">char</span> <span class="o">*</span><span class="n">kstack</span><span class="p">;</span>                <span class="c1">// Bottom of kernel stack for this process</span>
+  <span class="p">.....</span>
+  <span class="kt">int</span> <span class="n">priority</span><span class="p">;</span>                <span class="c1">// 进程的优先级, 取值范围是1-4</span>
+  <span class="n">uint</span> <span class="n">ctime</span><span class="p">;</span>                   <span class="c1">// 创建时间</span>
+  <span class="p">...</span>
+</code></pre></td></tr></tbody></table></div></div>
+
+<p>优先级调度的一个问题是，如何决定进程初始化时的优先级。初始化时的优先级也是系统进程的优先级，这个优先级不能太高，否则会让用户进程响应和等待的时间过长；但也不能太低，否则当用户需要某个内核进程的服务时，等待时间也会太长。这里，先将初始优先级设置为<code class="language-plaintext highlighter-rouge">2</code>. 在<code class="language-plaintext highlighter-rouge">allocproc()</code>中，进程初始化时：</p>
+
+<div class="language-c highlighter-rouge"><div class="highlight"><table style="margin: 0px"><tbody><tr><td class="gutter"><pre>1<br/>2<br/>3<br/>4<br/>5<br/>6<br/>7<br/>8<br/>9<br/>10<br/>11<br/>12<br/>13<br/>14<br/>15</pre></td><td class="code"><pre class="highlight"><code><span class="nl">found:</span>
+  <span class="n">p</span><span class="o">-&gt;</span><span class="n">state</span> <span class="o">=</span> <span class="n">EMBRYO</span><span class="p">;</span>
+  <span class="n">p</span><span class="o">-&gt;</span><span class="n">pid</span> <span class="o">=</span> <span class="n">nextpid</span><span class="o">++</span><span class="p">;</span>
+
+														<span class="c1">//modified here</span>
+  <span class="n">p</span><span class="o">-&gt;</span><span class="n">ctime</span> <span class="o">=</span> <span class="n">ticks</span><span class="p">;</span>
+  <span class="n">p</span><span class="o">-&gt;</span><span class="n">rutime</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+  <span class="n">p</span><span class="o">-&gt;</span><span class="n">sltime</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+  <span class="n">p</span><span class="o">-&gt;</span><span class="n">retime</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+
+														<span class="c1">//priority modified</span>
+  <span class="n">p</span><span class="o">-&gt;</span><span class="n">priority</span> <span class="o">=</span> <span class="mi">2</span><span class="p">;</span>
+
+  <span class="n">release</span><span class="p">(</span><span class="o">&amp;</span><span class="n">ptable</span><span class="p">.</span><span class="n">lock</span><span class="p">);</span>
+
+</code></pre></td></tr></tbody></table></div></div>
+
+<p>新的<code class="language-plaintext highlighter-rouge">scheduler</code>函数，在内层for循环中，再遍历整个进程表，用<code class="language-plaintext highlighter-rouge">phigh</code>保存目前为止优先级最高的进程。</p>
+
+<div class="language-c highlighter-rouge"><div class="highlight"><table style="margin: 0px"><tbody><tr><td class="gutter"><pre>1<br/>2<br/>3<br/>4<br/>5<br/>6<br/>7<br/>8<br/>9<br/>10<br/>11<br/>12<br/>13<br/>14<br/>15<br/>16<br/>17<br/>18<br/>19<br/>20<br/>21<br/>22<br/>23<br/>24<br/>25<br/>26<br/>27<br/>28<br/>29<br/>30<br/>31<br/>32<br/>33<br/>34<br/>35<br/>36<br/>37<br/>38<br/>39<br/>40<br/>41<br/>42<br/>43<br/>44<br/>45<br/>46<br/>47<br/>48<br/>49<br/>50<br/>51<br/>52<br/>53<br/>54<br/>55<br/>56<br/>57<br/>58<br/>59<br/>60<br/>61<br/>62<br/>63</pre></td><td class="code"><pre class="highlight"><code><span class="kt">void</span>
+<span class="nf">scheduler</span><span class="p">(</span><span class="kt">void</span><span class="p">)</span>
+<span class="p">{</span>
+  <span class="k">struct</span> <span class="n">proc</span> <span class="o">*</span><span class="n">p</span><span class="p">;</span>
+  <span class="k">struct</span> <span class="n">cpu</span> <span class="o">*</span><span class="n">c</span> <span class="o">=</span> <span class="n">mycpu</span><span class="p">();</span>
+  <span class="n">c</span><span class="o">-&gt;</span><span class="n">proc</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+  
+  <span class="k">for</span><span class="p">(;;){</span>
+    <span class="c1">// Enable interrupts on this processor.</span>
+    <span class="n">sti</span><span class="p">();</span>
+
+    <span class="c1">// Loop over process table looking for process to run.</span>
+    <span class="n">acquire</span><span class="p">(</span><span class="o">&amp;</span><span class="n">ptable</span><span class="p">.</span><span class="n">lock</span><span class="p">);</span>
+
+														<span class="c1">//PRIORITY modified</span>
+
+
+    <span class="k">for</span><span class="p">(</span><span class="n">p</span> <span class="o">=</span> <span class="n">ptable</span><span class="p">.</span><span class="n">proc</span><span class="p">;</span> <span class="n">p</span> <span class="o">&lt;</span> <span class="o">&amp;</span><span class="n">ptable</span><span class="p">.</span><span class="n">proc</span><span class="p">[</span><span class="n">NPROC</span><span class="p">];</span> <span class="n">p</span><span class="o">++</span><span class="p">){</span>
+
+      <span class="cp">#if defined RR
+</span>      <span class="k">if</span><span class="p">(</span><span class="n">p</span><span class="o">-&gt;</span><span class="n">state</span> <span class="o">!=</span> <span class="n">RUNNABLE</span><span class="p">)</span>            <span class="c1">// 原来的 Round Robin 调度</span>
+        <span class="k">continue</span><span class="p">;</span>
+
+      <span class="cp">#elif defined PRIORITY             // 静态优先级调度
+</span>      <span class="k">struct</span> <span class="n">proc</span> <span class="o">*</span><span class="n">pnow</span><span class="p">;</span>                 <span class="c1">// 用来遍历ptable的指针</span>
+      <span class="k">struct</span> <span class="n">proc</span> <span class="o">*</span><span class="n">phigh</span><span class="o">=</span><span class="mi">0</span><span class="p">;</span>              <span class="c1">// 遍历过程中保存最高优先级的进程</span>
+
+      <span class="k">if</span><span class="p">(</span><span class="n">p</span><span class="o">-&gt;</span><span class="n">state</span><span class="o">!=</span> <span class="n">RUNNABLE</span><span class="p">)</span>
+         <span class="k">continue</span><span class="p">;</span>
+      
+      <span class="n">phigh</span> <span class="o">=</span> <span class="n">p</span><span class="p">;</span>           <span class="c1">// 遍历整个表之前，phigh首先是下一个RUNNABLE的进程。</span>
+      <span class="k">for</span><span class="p">(</span> <span class="n">pnow</span> <span class="o">=</span> <span class="n">ptable</span><span class="p">.</span><span class="n">proc</span><span class="p">;</span> <span class="n">pnow</span><span class="o">&lt;&amp;</span><span class="n">ptable</span><span class="p">.</span><span class="n">proc</span><span class="p">[</span><span class="n">NPROC</span><span class="p">];</span> <span class="n">pnow</span><span class="o">++</span><span class="p">){</span>
+        <span class="k">if</span><span class="p">(</span><span class="n">pnow</span><span class="o">-&gt;</span><span class="n">state</span><span class="o">!=</span><span class="n">RUNNABLE</span><span class="p">)</span>     <span class="c1">// 遍历表中所有RUNNABLE的进程</span>
+          <span class="k">continue</span><span class="p">;</span> 
+        <span class="k">if</span><span class="p">(</span><span class="n">pnow</span><span class="o">-&gt;</span><span class="n">priority</span> <span class="o">&lt;</span> <span class="n">phigh</span><span class="o">-&gt;</span><span class="n">priority</span><span class="p">){</span>   <span class="c1">//如果有一个RUNNABLE的进程优先级比phigh高</span>
+	      <span class="n">phigh</span> <span class="o">=</span> <span class="n">pnow</span><span class="p">;</span>							<span class="c1">//更新phigh</span>
+	    <span class="p">}</span>
+      <span class="p">}</span>
+      <span class="n">p</span> <span class="o">=</span> <span class="n">phigh</span><span class="p">;</span>                    <span class="c1">//令下一个执行的进程为phigh</span>
+      <span class="cp">#endif
+</span>      
+
+      <span class="c1">// Switch to chosen process.  It is the process's job</span>
+      <span class="c1">// to release ptable.lock and then reacquire it</span>
+      <span class="c1">// before jumping back to us.</span>
+      <span class="k">if</span><span class="p">(</span><span class="n">p</span><span class="o">!=</span><span class="mi">0</span><span class="p">){</span>
+         <span class="n">cprintf</span><span class="p">(</span><span class="s">"%d is being scheduled on cpu: %d, its priority is %d.</span><span class="se">\n</span><span class="s">"</span><span class="p">,</span> <span class="n">p</span><span class="o">-&gt;</span><span class="n">pid</span><span class="p">,</span> <span class="n">c</span><span class="o">-&gt;</span><span class="n">apicid</span><span class="p">,</span> <span class="n">p</span><span class="o">-&gt;</span><span class="n">priority</span><span class="p">);</span>
+	 	<span class="n">c</span><span class="o">-&gt;</span><span class="n">proc</span> <span class="o">=</span> <span class="n">p</span><span class="p">;</span>
+        <span class="n">switchuvm</span><span class="p">(</span><span class="n">p</span><span class="p">);</span>
+	 	<span class="n">p</span><span class="o">-&gt;</span><span class="n">state</span> <span class="o">=</span> <span class="n">RUNNING</span><span class="p">;</span>
+
+	 	<span class="n">swtch</span><span class="p">(</span><span class="o">&amp;</span><span class="p">(</span><span class="n">c</span><span class="o">-&gt;</span><span class="n">scheduler</span><span class="p">),</span> <span class="n">p</span><span class="o">-&gt;</span><span class="n">context</span><span class="p">);</span>
+        <span class="n">switchkvm</span><span class="p">();</span>
+
+	 <span class="c1">// Process is done running for now.</span>
+	 <span class="c1">// It should have changed its p-&gt;state before coming back.</span>
+	 	<span class="n">c</span><span class="o">-&gt;</span><span class="n">proc</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+      <span class="p">}</span>
+    <span class="p">}</span>
+    <span class="n">release</span><span class="p">(</span><span class="o">&amp;</span><span class="n">ptable</span><span class="p">.</span><span class="n">lock</span><span class="p">);</span>
+
+  <span class="p">}</span>
+<span class="p">}</span>
+</code></pre></td></tr></tbody></table></div></div>
+
+<p>调度器的内层循环用指针<code class="language-plaintext highlighter-rouge">p</code>遍历整个进程表，本来每一次找到一个<code class="language-plaintext highlighter-rouge">RUNNABLE</code>进程，就切换到该进程。 用priority算法，每次调度一个进程后返回调度器时，<code class="language-plaintext highlighter-rouge">p</code>指向下一个<code class="language-plaintext highlighter-rouge">RUNNABLE</code>进程，<code class="language-plaintext highlighter-rouge">phigh</code>首先指向这个进程，然后遍历整个进程表，如果有更高级的进程，<code class="language-plaintext highlighter-rouge">phigh</code>会指向接下来第一个优先级最高的进程；如果没有，则下一个进程就是表中下一个可执行进程。</p>
+
+<p>实现系统调用<code class="language-plaintext highlighter-rouge">set_priority</code>：</p>
+
+<div class="language-c highlighter-rouge"><div class="highlight"><table style="margin: 0px"><tbody><tr><td class="gutter"><pre>1<br/>2<br/>3<br/>4<br/>5<br/>6<br/>7<br/>8<br/>9<br/>10<br/>11<br/>12<br/>13<br/>14<br/>15<br/>16<br/>17</pre></td><td class="code"><pre class="highlight"><code><span class="kt">int</span>
+<span class="nf">set_priority</span><span class="p">(</span><span class="kt">int</span> <span class="n">pid</span><span class="p">,</span> <span class="kt">int</span> <span class="n">priority</span><span class="p">)</span>
+<span class="p">{</span>
+    <span class="k">struct</span> <span class="n">proc</span> <span class="o">*</span><span class="n">p</span><span class="o">=</span><span class="mi">0</span><span class="p">;</span>
+    <span class="n">acquire</span><span class="p">(</span><span class="o">&amp;</span><span class="n">ptable</span><span class="p">.</span><span class="n">lock</span><span class="p">);</span>
+    <span class="k">for</span><span class="p">(</span><span class="n">p</span><span class="o">=</span><span class="n">ptable</span><span class="p">.</span><span class="n">proc</span><span class="p">;</span> <span class="n">p</span><span class="o">&lt;</span> <span class="o">&amp;</span><span class="n">ptable</span><span class="p">.</span><span class="n">proc</span><span class="p">[</span><span class="n">NPROC</span><span class="p">];</span> <span class="n">p</span><span class="o">++</span><span class="p">){</span>
+       <span class="k">if</span><span class="p">(</span><span class="n">p</span><span class="o">-&gt;</span><span class="n">pid</span> <span class="o">==</span> <span class="n">pid</span><span class="p">){</span>
+           <span class="n">p</span><span class="o">-&gt;</span><span class="n">priority</span><span class="o">=</span><span class="n">priority</span><span class="p">;</span>
+
+           <span class="n">release</span><span class="p">(</span><span class="o">&amp;</span><span class="n">ptable</span><span class="p">.</span><span class="n">lock</span><span class="p">);</span>
+           <span class="k">return</span> <span class="mi">0</span><span class="p">;</span>
+       <span class="p">}</span>          
+    <span class="p">}</span>
+    <span class="c1">// 找不到该pid，错误</span>
+    <span class="n">release</span><span class="p">(</span><span class="o">&amp;</span><span class="n">ptable</span><span class="p">.</span><span class="n">lock</span><span class="p">);</span>
+    <span class="k">return</span> <span class="o">-</span><span class="mi">1</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></td></tr></tbody></table></div></div>
+
+<p>把它封装好之后，修改<code class="language-plaintext highlighter-rouge">RRsta.c</code>， 加入<code class="language-plaintext highlighter-rouge">set_priority</code>：</p>
+
+<div class="language-c highlighter-rouge"><div class="highlight"><table style="margin: 0px"><tbody><tr><td class="gutter"><pre>1<br/>2<br/>3<br/>4<br/>5<br/>6<br/>7<br/>8<br/>9<br/>10<br/>11<br/>12<br/>13<br/>14<br/>15<br/>16<br/>17<br/>18<br/>19<br/>20<br/>21<br/>22<br/>23<br/>24<br/>25<br/>26<br/>27<br/>28<br/>29<br/>30<br/>31<br/>32<br/>33<br/>34<br/>35<br/>36<br/>37<br/>38<br/>39<br/>40<br/>41<br/>42<br/>43<br/>44<br/>45<br/>46</pre></td><td class="code"><pre class="highlight"><code><span class="kt">int</span> <span class="n">stdout</span><span class="o">=</span><span class="mi">1</span><span class="p">;</span>
+<span class="kt">int</span> <span class="nf">main</span><span class="p">(</span><span class="kt">int</span> <span class="n">argc</span><span class="p">,</span> <span class="kt">char</span><span class="o">*</span> <span class="n">argv</span><span class="p">[])</span>
+<span class="p">{</span>
+    <span class="k">if</span><span class="p">(</span><span class="n">argc</span><span class="o">!=</span><span class="mi">2</span><span class="p">){</span>
+        <span class="n">printf</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="s">"usage: priority_sta &lt;fork number&gt; </span><span class="se">\n</span><span class="s">"</span><span class="p">);</span>
+	<span class="n">exit</span><span class="p">();</span>
+    <span class="p">}</span>
+    <span class="kt">int</span> <span class="n">forknumber</span><span class="o">=</span><span class="n">atoi</span><span class="p">(</span><span class="n">argv</span><span class="p">[</span><span class="mi">1</span><span class="p">]);</span>
+    <span class="kt">int</span> <span class="n">status</span><span class="p">;</span>
+
+    <span class="k">for</span><span class="p">(</span><span class="kt">int</span> <span class="n">i</span><span class="o">=</span><span class="mi">0</span><span class="p">;</span><span class="n">i</span><span class="o">&lt;</span><span class="n">forknumber</span><span class="p">;</span><span class="n">i</span><span class="o">++</span><span class="p">)</span>
+    <span class="p">{</span>
+        <span class="n">status</span><span class="o">=</span><span class="n">fork</span><span class="p">();</span>
+        <span class="k">if</span><span class="p">(</span><span class="n">status</span><span class="p">)</span>
+		<span class="p">{</span>
+	    	<span class="n">set_priority</span><span class="p">(</span><span class="n">status</span><span class="p">,</span> <span class="n">i</span><span class="o">%</span><span class="mi">4</span><span class="o">+</span><span class="mi">1</span><span class="p">);</span>   <span class="c1">//在父进程中，将每个子进程的优先级设置为i%4+1.</span>
+        <span class="p">}</span>
+        <span class="k">if</span><span class="p">(</span><span class="n">status</span><span class="o">==</span><span class="mi">0</span><span class="p">){</span>
+	    	<span class="k">for</span><span class="p">(</span><span class="kt">int</span> <span class="n">count</span><span class="o">=</span><span class="mi">0</span><span class="p">;</span><span class="n">count</span><span class="o">&lt;</span><span class="mi">40</span><span class="p">;</span> <span class="n">count</span><span class="o">++</span><span class="p">){</span>
+				<span class="n">printf</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="s">" "</span><span class="p">);</span>
+		    	<span class="k">for</span><span class="p">(</span><span class="kt">int</span> <span class="n">k</span><span class="o">=</span><span class="mi">0</span><span class="p">;</span><span class="n">k</span><span class="o">&lt;</span><span class="mi">1000000</span><span class="p">;</span><span class="n">k</span><span class="o">++</span><span class="p">){</span>
+					<span class="kt">int</span> <span class="n">result</span><span class="o">=</span><span class="mi">0</span><span class="p">;</span>
+					<span class="k">for</span><span class="p">(</span> <span class="kt">int</span> <span class="n">j</span><span class="o">=</span><span class="mi">0</span><span class="p">;</span> <span class="n">j</span><span class="o">&lt;</span><span class="mi">5000</span><span class="p">;</span> <span class="n">j</span><span class="o">++</span><span class="p">){</span>
+			    		<span class="n">result</span><span class="o">+=</span><span class="n">j</span><span class="o">*</span><span class="n">j</span><span class="p">;</span>
+                        <span class="n">result</span><span class="o">-=</span><span class="n">j</span><span class="o">*</span><span class="n">j</span><span class="p">;</span>
+                        <span class="n">result</span><span class="o">=</span> <span class="n">result</span><span class="o">/</span><span class="n">j</span><span class="p">;</span>
+                        <span class="n">result</span><span class="o">=</span><span class="n">result</span><span class="o">*</span><span class="n">j</span><span class="p">;</span>
+                        <span class="n">result</span> <span class="o">=</span> <span class="n">result</span><span class="o">+</span><span class="n">result</span><span class="o">/</span><span class="n">j</span><span class="p">;</span>
+					<span class="p">}</span>
+		   		<span class="p">}</span>
+            <span class="p">}</span>
+            
+            <span class="n">exit</span><span class="p">();</span>
+        <span class="p">}</span>
+    <span class="p">}</span>
+    <span class="kt">int</span> <span class="n">rutime</span><span class="p">;</span>
+    <span class="kt">int</span> <span class="n">retime</span><span class="p">;</span>
+    <span class="kt">int</span> <span class="n">sltime</span><span class="p">;</span>
+    <span class="kt">int</span> <span class="n">pid</span><span class="p">;</span>
+    <span class="kt">int</span> <span class="n">sum</span><span class="o">=</span><span class="mi">0</span><span class="p">;</span>
+    <span class="k">while</span><span class="p">((</span><span class="n">pid</span> <span class="o">=</span> <span class="n">waitSch</span><span class="p">(</span><span class="o">&amp;</span><span class="n">rutime</span><span class="p">,</span><span class="o">&amp;</span><span class="n">retime</span><span class="p">,</span><span class="o">&amp;</span><span class="n">sltime</span><span class="p">))</span><span class="o">!=-</span><span class="mi">1</span><span class="p">){</span>
+        <span class="n">sum</span><span class="o">+=</span> <span class="n">rutime</span><span class="o">+</span><span class="n">retime</span><span class="o">+</span><span class="n">sltime</span><span class="p">;</span>
+    <span class="p">}</span>
+    <span class="n">printf</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="s">" average turn-around time of %d process is %d</span><span class="se">\n</span><span class="s">"</span><span class="p">,</span> <span class="n">forknumber</span><span class="p">,</span> <span class="n">sum</span><span class="o">/</span><span class="n">forknumber</span><span class="p">);</span>
+    <span class="n">exit</span><span class="p">();</span>
+<span class="p">}</span>
+</code></pre></td></tr></tbody></table></div></div>
+
+<p>在内核中，添加一些额外的输出来验证算法实现的正确性。重新编译内核，然后执行<code class="language-plaintext highlighter-rouge">priority_sta.c</code>, fork 4个进程：</p>
+
+<div class="language-shell highlighter-rouge"><div class="highlight"><table style="margin: 0px"><tbody><tr><td class="gutter"><pre>1</pre></td><td class="code"><pre class="highlight"><code><span class="nv">$ </span>priority_sta 4
+</code></pre></td></tr></tbody></table></div></div>
+
+<p><img src="/assets/images/report/oslab43-3.png" alt="image-20191115172428255" /></p>
+
+<p>pid为3的进程是父进程，子进程的pid分别为4， 5， 6， 7，创建后set_priority, 使它们的优先级分别为1， 2， 3， 4；进程的初始优先级被设置为2.</p>
+
+<p>当进程4被创建，并设置优先级为1之后，它是系统中优先级最高的进程，正确情况下会一直运行直到结束（除非它进入休眠，或者有同样优先级为1的进程到来）；因为有两个cpu，进程3可以在另一个cpu上调度，继续创建进程5，6. 这时，进程4已经结束，系统中有3，5， 6三个进程，但正确情况下只有3和5可以被调度，6必须等待直到3和5不是RUNNING或RUNNABLE状态。</p>
+
+<p>从这段程序的输出来看，目前的调度都是正确的。进程6一直没有被调度，直到进程3进入休眠：</p>
+
+<p><img src="/assets/images/report/oslab43-4.png" alt="" /></p>
+
+<p>进程3创建了进程7（最后一个子进程）之后，它就进入休眠等待所有子进程结束。这时进程6被第一次调度，而直到进程5结束，系统只剩下3，6，7时，在进程3休眠时进程7才可被调度。</p>
+
+<p>统计所有进程的运行情况：</p>
+
+<p><img src="/assets/images/report/oslab43-5.png" alt="" /></p>
+
+<p>优先级越高的进程平均周转时间越长。从图中可以看出，进程的运行时间相差不大，而优先级最低的进程（7，11）明显等待时间比其他进程要长很多（11）。但从单个进程来看，不一定优先级越低进程周转时间越长，例如进程10（优先级为3）的周转时间就比进程11（优先级为4）长很多，这是因为进程11到达更晚，且它到达时系统中更高优先级的进程几乎已经都执行结束。</p>
+
+<h3 id="静态多级反馈队列">静态多级反馈队列</h3>
+
+<p>静态多级反馈其实跟上面的静态优先级调度类似，但是它使用了多级队列的方法，使优先级相同的进程能够按照FCFS来调度。静态优先级调度则不一定是先来先服务的，因为它是遍历整个进程表找最高优先级的进程，这样，当pid序号在前的进程退出被回收之后，前面就会出现空槽，更新创建的进程反而会比老的进程pid序号更低，更先被调度。</p>
+
+<p>实现多级反馈队列，首先要为每个优先级定义对应的等待队列。等待队列由一个<code class="language-plaintext highlighter-rouge">proc</code>结构体的指针数组来表示，考虑到进队和出队的动作一般发生在进程的优先级发生改变或者状态改变的时候，都会持有<code class="language-plaintext highlighter-rouge">ptable.lock</code>,则访问等待队列已经可以保证互斥。因此可以省略等待队列的锁。同时，用变量<code class="language-plaintext highlighter-rouge">size</code>来表示等待队列目前的大小，也就是最后一个进程的下标。</p>
+
+<div class="language-c highlighter-rouge"><div class="highlight"><table style="margin: 0px"><tbody><tr><td class="gutter"><pre>1<br/>2<br/>3<br/>4<br/>5<br/>6<br/>7<br/>8<br/>9<br/>10<br/>11<br/>12<br/>13<br/>14</pre></td><td class="code"><pre class="highlight"><code><span class="cp">#if defined SML
+</span>
+<span class="k">typedef</span> <span class="k">struct</span> <span class="n">queue_t</span><span class="p">{</span>
+  <span class="kt">int</span> <span class="n">size</span><span class="p">;</span>
+  <span class="k">struct</span> <span class="n">proc</span><span class="o">*</span> <span class="n">proc</span><span class="p">[</span><span class="n">NPROC</span><span class="p">];</span>
+  <span class="kt">int</span> <span class="n">priority</span><span class="p">;</span>    <span class="c1">//for debug</span>
+<span class="p">}</span><span class="n">queue_t</span><span class="p">;</span>
+
+<span class="k">struct</span> <span class="n">queue_t</span> <span class="n">pqueue_1</span><span class="p">;</span>   <span class="c1">//4个优先级队列</span>
+<span class="k">struct</span> <span class="n">queue_t</span> <span class="n">pqueue_2</span><span class="p">;</span>
+<span class="k">struct</span> <span class="n">queue_t</span> <span class="n">pqueue_3</span><span class="p">;</span>
+<span class="k">struct</span> <span class="n">queue_t</span> <span class="n">pqueue_4</span><span class="p">;</span>
+
+<span class="cp">#endif
+</span></code></pre></td></tr></tbody></table></div></div>
+
+<p>内核开始时，要初始化4条优先级队列，定义一个初始化函数来完成：</p>
+
+<div class="language-c highlighter-rouge"><div class="highlight"><table style="margin: 0px"><tbody><tr><td class="gutter"><pre>1<br/>2<br/>3<br/>4<br/>5<br/>6<br/>7<br/>8<br/>9<br/>10<br/>11<br/>12<br/>13<br/>14<br/>15<br/>16<br/>17<br/>18<br/>19<br/>20<br/>21<br/>22</pre></td><td class="code"><pre class="highlight"><code><span class="kt">void</span>
+<span class="nf">pqueue_init</span><span class="p">(</span><span class="k">struct</span> <span class="n">queue_t</span> <span class="o">*</span><span class="n">queue</span><span class="p">,</span> <span class="kt">int</span> <span class="n">priority</span><span class="p">)</span>
+<span class="p">{</span>
+   <span class="n">queue</span><span class="o">-&gt;</span><span class="n">priority</span><span class="o">=</span><span class="n">priority</span><span class="p">;</span>     <span class="c1">//为方便输出debug，加入变量priority</span>
+   <span class="n">queue</span><span class="o">-&gt;</span><span class="n">size</span><span class="o">=</span><span class="mi">0</span><span class="p">;</span>
+   <span class="k">for</span><span class="p">(</span><span class="kt">int</span> <span class="n">i</span><span class="o">=</span><span class="mi">0</span><span class="p">;</span> <span class="n">i</span><span class="o">&lt;</span><span class="n">NPROC</span><span class="p">;</span> <span class="n">i</span><span class="o">++</span><span class="p">)</span>    <span class="c1">//初始时指针为0</span>
+      <span class="n">queue</span><span class="o">-&gt;</span><span class="n">proc</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">=</span><span class="mi">0</span><span class="p">;</span>
+<span class="p">}</span>
+<span class="kt">void</span>
+<span class="nf">pinit</span><span class="p">(</span><span class="kt">void</span><span class="p">)</span>
+<span class="p">{</span>
+  <span class="n">initlock</span><span class="p">(</span><span class="o">&amp;</span><span class="n">ptable</span><span class="p">.</span><span class="n">lock</span><span class="p">,</span> <span class="s">"ptable"</span><span class="p">);</span>
+				
+  <span class="cp">#if defined SML									//sml modified
+</span>  <span class="n">pqueue_init</span><span class="p">(</span><span class="o">&amp;</span><span class="n">pqueue_1</span><span class="p">,</span><span class="mi">1</span><span class="p">);</span>
+  <span class="n">pqueue_init</span><span class="p">(</span><span class="o">&amp;</span><span class="n">pqueue_2</span><span class="p">,</span><span class="mi">2</span><span class="p">);</span>
+  <span class="n">pqueue_init</span><span class="p">(</span><span class="o">&amp;</span><span class="n">pqueue_3</span><span class="p">,</span><span class="mi">3</span><span class="p">);</span>
+  <span class="n">pqueue_init</span><span class="p">(</span><span class="o">&amp;</span><span class="n">pqueue_4</span><span class="p">,</span><span class="mi">4</span><span class="p">);</span>
+  <span class="cp">#endif
+</span>
+<span class="p">}</span>
+
+</code></pre></td></tr></tbody></table></div></div>
+
+<p>等待队列涉及三种操作，即入队，删除队列中的一个进程，以及取等待队列中最早到达的一个RUNNABLE的进程。</p>
+
+<p>由于进程的优先级在运行过程中可能动态变化，所以可能要将一个进程从某个队列删除后添加到另一个队列中，这时，为了保持队列从到达时间早到晚排序，要遍历队列，找到该进程的插入位置。从最后（<code class="language-plaintext highlighter-rouge">q-&gt;size-1</code>)往前扫描，如果当前指针进程的到达时间<code class="language-plaintext highlighter-rouge">ctime</code>比新进程<code class="language-plaintext highlighter-rouge">p-&gt;ctime</code>大（晚），就把它往后挪。直到指向一个进程，到达时间&lt;=<code class="language-plaintext highlighter-rouge">p-&gt;ctime</code>，然后把<code class="language-plaintext highlighter-rouge">p</code>插入到它的后面。最后，要将<code class="language-plaintext highlighter-rouge">q-&gt;size</code>增加一。</p>
+
+<div class="language-c highlighter-rouge"><div class="highlight"><table style="margin: 0px"><tbody><tr><td class="gutter"><pre>1<br/>2<br/>3<br/>4<br/>5<br/>6<br/>7<br/>8<br/>9<br/>10<br/>11<br/>12<br/>13<br/>14</pre></td><td class="code"><pre class="highlight"><code><span class="kt">void</span> 
+<span class="nf">enqueue</span><span class="p">(</span><span class="k">struct</span> <span class="n">queue_t</span> <span class="o">*</span><span class="n">q</span><span class="p">,</span> <span class="k">struct</span> <span class="n">proc</span> <span class="o">*</span><span class="n">p</span><span class="p">)</span>
+<span class="p">{</span>
+    <span class="n">cprintf</span><span class="p">(</span><span class="s">"proc %d enqueueing %d.</span><span class="se">\n</span><span class="s">"</span><span class="p">,</span> <span class="n">p</span><span class="o">-&gt;</span><span class="n">pid</span><span class="p">,</span> <span class="n">q</span><span class="o">-&gt;</span><span class="n">priority</span><span class="p">);</span>
+    <span class="kt">int</span> <span class="n">pos</span><span class="p">;</span>
+    <span class="n">pos</span> <span class="o">=</span> <span class="n">q</span><span class="o">-&gt;</span><span class="n">size</span> <span class="o">-</span> <span class="mi">1</span><span class="p">;</span>
+    <span class="k">while</span><span class="p">(</span><span class="n">pos</span> <span class="o">&gt;=</span> <span class="mi">0</span> <span class="o">&amp;&amp;</span> <span class="n">q</span><span class="o">-&gt;</span><span class="n">proc</span><span class="p">[</span><span class="n">pos</span><span class="p">]</span><span class="o">-&gt;</span><span class="n">ctime</span> <span class="o">&gt;</span> <span class="n">p</span><span class="o">-&gt;</span><span class="n">ctime</span><span class="p">){</span>   <span class="c1">//从后往前扫描</span>
+        <span class="n">q</span><span class="o">-&gt;</span><span class="n">proc</span><span class="p">[</span><span class="n">pos</span><span class="o">+</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">q</span><span class="o">-&gt;</span><span class="n">proc</span><span class="p">[</span><span class="n">pos</span><span class="p">];</span>    <span class="c1">//如果目前进程比新插入进程到达晚，就把它向后挪一个位置</span>
+		<span class="n">pos</span><span class="o">--</span><span class="p">;</span>
+    <span class="p">}</span>
+    <span class="c1">// 目前pos指向的进程比插入的进程到达时间早或相同。</span>
+    <span class="n">q</span><span class="o">-&gt;</span><span class="n">proc</span><span class="p">[</span><span class="n">pos</span><span class="o">+</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">p</span><span class="p">;</span>   
+    <span class="n">q</span><span class="o">-&gt;</span><span class="n">size</span> <span class="o">++</span><span class="p">;</span>   
+<span class="p">}</span>
+</code></pre></td></tr></tbody></table></div></div>
+
+<p>删除队列的操作，是从前往后遍历该等待队列，找到要删除的进程，如果能找到，则将从该位置开始后面的进程都往前挪一个位置，最后一个位置变为0，最后把<code class="language-plaintext highlighter-rouge">size</code>减1.</p>
+
+<div class="language-c highlighter-rouge"><div class="highlight"><table style="margin: 0px"><tbody><tr><td class="gutter"><pre>1<br/>2<br/>3<br/>4<br/>5<br/>6<br/>7<br/>8<br/>9<br/>10<br/>11<br/>12<br/>13<br/>14<br/>15<br/>16<br/>17<br/>18<br/>19<br/>20<br/>21<br/>22<br/>23<br/>24<br/>25<br/>26<br/>27</pre></td><td class="code"><pre class="highlight"><code><span class="kt">void</span>
+<span class="nf">removeq</span><span class="p">(</span><span class="k">struct</span> <span class="n">queue_t</span><span class="o">*</span> <span class="n">q</span><span class="p">,</span> <span class="k">struct</span> <span class="n">proc</span> <span class="o">*</span><span class="n">p</span><span class="p">)</span>
+<span class="p">{</span>
+   <span class="n">cprintf</span><span class="p">(</span><span class="s">"removing %d from q: %d</span><span class="se">\n</span><span class="s">"</span><span class="p">,</span><span class="n">p</span><span class="o">-&gt;</span><span class="n">pid</span><span class="p">,</span> <span class="n">q</span><span class="o">-&gt;</span><span class="n">priority</span><span class="p">);</span>
+   <span class="kt">int</span> <span class="n">pos</span><span class="p">;</span>
+   <span class="kt">int</span> <span class="n">found</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+
+   <span class="n">pos</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+   <span class="k">while</span><span class="p">(</span><span class="n">pos</span> <span class="o">&lt;</span> <span class="n">q</span><span class="o">-&gt;</span><span class="n">size</span><span class="p">){</span>
+      <span class="k">if</span><span class="p">(</span><span class="n">q</span><span class="o">-&gt;</span><span class="n">proc</span><span class="p">[</span><span class="n">pos</span><span class="p">]</span><span class="o">==</span><span class="n">p</span><span class="p">){</span>   <span class="c1">//从前往后，找到该进程</span>
+          <span class="n">found</span><span class="o">=</span><span class="mi">1</span><span class="p">;</span>
+          <span class="k">break</span><span class="p">;</span>
+      <span class="p">}</span>
+      <span class="k">else</span><span class="p">{</span>
+        <span class="n">pos</span><span class="o">++</span><span class="p">;</span>
+      <span class="p">}</span>
+   <span class="p">}</span>
+   <span class="k">if</span><span class="p">(</span><span class="n">found</span><span class="p">){</span>   <span class="c1">//若找到，此时pos指向要删除的进程</span>
+      <span class="k">while</span><span class="p">(</span><span class="n">pos</span> <span class="o">&lt;</span> <span class="n">q</span><span class="o">-&gt;</span><span class="n">size</span><span class="o">-</span><span class="mi">1</span><span class="p">){</span>    <span class="c1">//从 pos 到倒数第二个进程位置</span>
+            <span class="n">q</span><span class="o">-&gt;</span><span class="n">proc</span><span class="p">[</span><span class="n">pos</span><span class="p">]</span> <span class="o">=</span> <span class="n">q</span><span class="o">-&gt;</span><span class="n">proc</span><span class="p">[</span><span class="n">pos</span><span class="o">+</span><span class="mi">1</span><span class="p">];</span>  <span class="c1">//将所有进程往前挪一个位置</span>
+            <span class="n">pos</span><span class="o">++</span><span class="p">;</span>
+      <span class="p">}</span>
+      <span class="n">q</span><span class="o">-&gt;</span><span class="n">proc</span><span class="p">[</span><span class="n">q</span><span class="o">-&gt;</span><span class="n">size</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+      <span class="n">q</span><span class="o">-&gt;</span><span class="n">size</span> <span class="o">--</span><span class="p">;</span>
+    <span class="p">}</span>
+   
+<span class="p">}</span>
+</code></pre></td></tr></tbody></table></div></div>
+
+<p>查找等待队列中第一个RUNNABLE的进程，只要从前往后遍历，找到第一个RUNNABLE的进程就返回即可。如果未找到，则返回0.</p>
+
+<div class="language-c highlighter-rouge"><div class="highlight"><table style="margin: 0px"><tbody><tr><td class="gutter"><pre>1<br/>2<br/>3<br/>4<br/>5<br/>6<br/>7<br/>8<br/>9<br/>10<br/>11<br/>12<br/>13<br/>14<br/>15</pre></td><td class="code"><pre class="highlight"><code><span class="k">struct</span> <span class="n">proc</span><span class="o">*</span>
+<span class="nf">headq</span><span class="p">(</span><span class="k">struct</span> <span class="n">queue_t</span><span class="o">*</span> <span class="n">q</span><span class="p">)</span>
+<span class="p">{</span>
+    <span class="k">struct</span> <span class="n">proc</span><span class="o">*</span> <span class="n">p</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+    <span class="kt">int</span> <span class="n">pos</span><span class="p">;</span>
+
+    <span class="k">for</span><span class="p">(</span><span class="n">pos</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span> <span class="n">pos</span> <span class="o">&lt;</span> <span class="n">q</span><span class="o">-&gt;</span><span class="n">size</span><span class="p">;</span> <span class="n">pos</span><span class="o">++</span><span class="p">){</span>
+      <span class="k">if</span><span class="p">(</span><span class="n">q</span><span class="o">-&gt;</span><span class="n">proc</span><span class="p">[</span><span class="n">pos</span><span class="p">]</span><span class="o">-&gt;</span><span class="n">state</span> <span class="o">==</span> <span class="n">RUNNABLE</span><span class="p">){</span>    <span class="c1">//找到第一个RUNNABLE进程，注意等待队列是从到达时间小到大排序的</span>
+        <span class="n">p</span> <span class="o">=</span> <span class="n">q</span><span class="o">-&gt;</span><span class="n">proc</span><span class="p">[</span><span class="n">pos</span><span class="p">];</span>
+        <span class="k">break</span><span class="p">;</span>
+      <span class="p">}</span>
+    <span class="p">}</span>
+
+    <span class="k">return</span> <span class="n">p</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></td></tr></tbody></table></div></div>
+
+<p>接下来要就是要实现进程在执行过程中状态或优先级变化时相应的等待队列的操作。由于等待队列代价比较高，所以尽量在确定进程已经正确分配好各种资源，才将它加入到初始优先级队列中去。 在<code class="language-plaintext highlighter-rouge">userinit</code>中，设置默认优先级为2：</p>
+
+<div class="language-c highlighter-rouge"><div class="highlight"><table style="margin: 0px"><tbody><tr><td class="gutter"><pre>1<br/>2<br/>3<br/>4</pre></td><td class="code"><pre class="highlight"><code>  <span class="cp">#if defined SML														//sml modified
+</span>  <span class="n">p</span><span class="o">-&gt;</span><span class="n">priority</span><span class="o">=</span><span class="mi">2</span><span class="p">;</span>
+  <span class="n">enqueue</span><span class="p">(</span><span class="o">&amp;</span><span class="n">pqueue_2</span><span class="p">,</span> <span class="n">p</span><span class="p">);</span>
+  <span class="cp">#endif
+</span></code></pre></td></tr></tbody></table></div></div>
+
+<p>在<code class="language-plaintext highlighter-rouge">fork()</code>中，让子进程继承父进程的优先级（默认为2），然后进入相应的等待队列：</p>
+
+<div class="language-c highlighter-rouge"><div class="highlight"><table style="margin: 0px"><tbody><tr><td class="gutter"><pre>1<br/>2<br/>3<br/>4<br/>5<br/>6<br/>7<br/>8<br/>9<br/>10<br/>11<br/>12<br/>13<br/>14<br/>15<br/>16<br/>17<br/>18<br/>19<br/>20<br/>21<br/>22<br/>23</pre></td><td class="code"><pre class="highlight"><code>  <span class="k">if</span><span class="p">((</span><span class="n">np</span><span class="o">-&gt;</span><span class="n">pgdir</span> <span class="o">=</span> <span class="n">copyuvm</span><span class="p">(</span><span class="n">curproc</span><span class="o">-&gt;</span><span class="n">pgdir</span><span class="p">,</span> <span class="n">curproc</span><span class="o">-&gt;</span><span class="n">sz</span><span class="p">))</span> <span class="o">==</span> <span class="mi">0</span><span class="p">){</span>
+    <span class="n">kfree</span><span class="p">(</span><span class="n">np</span><span class="o">-&gt;</span><span class="n">kstack</span><span class="p">);</span>
+    <span class="n">np</span><span class="o">-&gt;</span><span class="n">kstack</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+    <span class="n">np</span><span class="o">-&gt;</span><span class="n">state</span> <span class="o">=</span> <span class="n">UNUSED</span><span class="p">;</span>									
+    <span class="k">return</span> <span class="o">-</span><span class="mi">1</span><span class="p">;</span>
+  <span class="p">}</span>
+  <span class="n">np</span><span class="o">-&gt;</span><span class="n">sz</span> <span class="o">=</span> <span class="n">curproc</span><span class="o">-&gt;</span><span class="n">sz</span><span class="p">;</span>
+  <span class="n">np</span><span class="o">-&gt;</span><span class="n">parent</span> <span class="o">=</span> <span class="n">curproc</span><span class="p">;</span>
+  <span class="o">*</span><span class="n">np</span><span class="o">-&gt;</span><span class="n">tf</span> <span class="o">=</span> <span class="o">*</span><span class="n">curproc</span><span class="o">-&gt;</span><span class="n">tf</span><span class="p">;</span>
+														<span class="c1">//sml modified</span>
+  <span class="n">np</span><span class="o">-&gt;</span><span class="n">priority</span> <span class="o">=</span> <span class="n">curproc</span><span class="o">-&gt;</span><span class="n">priority</span><span class="p">;</span>
+
+  <span class="cp">#if defined SML
+</span>  <span class="k">switch</span><span class="p">(</span><span class="n">np</span><span class="o">-&gt;</span><span class="n">priority</span><span class="p">){</span>     <span class="c1">//进入相应的优先级队列</span>
+     <span class="k">case</span> <span class="mi">1</span><span class="p">:</span> <span class="n">enqueue</span><span class="p">(</span><span class="o">&amp;</span><span class="n">pqueue_1</span><span class="p">,</span> <span class="n">np</span><span class="p">);</span> <span class="k">break</span><span class="p">;</span>
+     <span class="k">case</span> <span class="mi">2</span><span class="p">:</span> <span class="n">enqueue</span><span class="p">(</span><span class="o">&amp;</span><span class="n">pqueue_2</span><span class="p">,</span> <span class="n">np</span><span class="p">);</span> <span class="k">break</span><span class="p">;</span>
+     <span class="k">case</span> <span class="mi">3</span><span class="p">:</span> <span class="n">enqueue</span><span class="p">(</span><span class="o">&amp;</span><span class="n">pqueue_3</span><span class="p">,</span> <span class="n">np</span><span class="p">);</span> <span class="k">break</span><span class="p">;</span>
+     <span class="k">case</span> <span class="mi">4</span><span class="p">:</span> <span class="n">enqueue</span><span class="p">(</span><span class="o">&amp;</span><span class="n">pqueue_4</span><span class="p">,</span> <span class="n">np</span><span class="p">);</span> <span class="k">break</span><span class="p">;</span>
+     <span class="nl">default:</span> <span class="n">panic</span><span class="p">(</span><span class="s">"priority must be between 1-4."</span><span class="p">);</span>
+  <span class="p">}</span>
+     
+  <span class="cp">#endif
+</span>
+</code></pre></td></tr></tbody></table></div></div>
+
+<p>在进程终止，被父进程回收资源时，要将它们从相应的等待队列中删除，在<code class="language-plaintext highlighter-rouge">wait</code>和<code class="language-plaintext highlighter-rouge">waitSch</code>中作同样的改变：</p>
+
+<div class="language-c highlighter-rouge"><div class="highlight"><table style="margin: 0px"><tbody><tr><td class="gutter"><pre>1<br/>2<br/>3<br/>4<br/>5<br/>6<br/>7<br/>8<br/>9<br/>10<br/>11<br/>12<br/>13<br/>14<br/>15<br/>16<br/>17<br/>18<br/>19<br/>20<br/>21<br/>22<br/>23<br/>24<br/>25<br/>26<br/>27<br/>28<br/>29<br/>30<br/>31<br/>32<br/>33<br/>34<br/>35<br/>36<br/>37<br/>38<br/>39<br/>40<br/>41<br/>42<br/>43<br/>44<br/>45<br/>46</pre></td><td class="code"><pre class="highlight"><code><span class="kt">int</span>
+<span class="nf">wait</span><span class="p">(</span><span class="kt">void</span><span class="p">)</span>
+<span class="p">{</span>
+  <span class="k">struct</span> <span class="n">proc</span> <span class="o">*</span><span class="n">p</span><span class="p">;</span>
+  <span class="kt">int</span> <span class="n">havekids</span><span class="p">,</span> <span class="n">pid</span><span class="p">;</span>
+  <span class="k">struct</span> <span class="n">proc</span> <span class="o">*</span><span class="n">curproc</span> <span class="o">=</span> <span class="n">myproc</span><span class="p">();</span>
+  
+  <span class="n">acquire</span><span class="p">(</span><span class="o">&amp;</span><span class="n">ptable</span><span class="p">.</span><span class="n">lock</span><span class="p">);</span>
+  <span class="k">for</span><span class="p">(;;){</span>
+    <span class="c1">// Scan through table looking for exited children.</span>
+    <span class="n">havekids</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+    <span class="k">for</span><span class="p">(</span><span class="n">p</span> <span class="o">=</span> <span class="n">ptable</span><span class="p">.</span><span class="n">proc</span><span class="p">;</span> <span class="n">p</span> <span class="o">&lt;</span> <span class="o">&amp;</span><span class="n">ptable</span><span class="p">.</span><span class="n">proc</span><span class="p">[</span><span class="n">NPROC</span><span class="p">];</span> <span class="n">p</span><span class="o">++</span><span class="p">){</span>
+      <span class="k">if</span><span class="p">(</span><span class="n">p</span><span class="o">-&gt;</span><span class="n">parent</span> <span class="o">!=</span> <span class="n">curproc</span><span class="p">)</span>
+        <span class="k">continue</span><span class="p">;</span>
+      <span class="n">havekids</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span>
+      <span class="k">if</span><span class="p">(</span><span class="n">p</span><span class="o">-&gt;</span><span class="n">state</span> <span class="o">==</span> <span class="n">ZOMBIE</span><span class="p">){</span>
+        <span class="c1">// Found one.</span>
+        <span class="n">pid</span> <span class="o">=</span> <span class="n">p</span><span class="o">-&gt;</span><span class="n">pid</span><span class="p">;</span>
+        <span class="n">kfree</span><span class="p">(</span><span class="n">p</span><span class="o">-&gt;</span><span class="n">kstack</span><span class="p">);</span>
+        <span class="n">p</span><span class="o">-&gt;</span><span class="n">kstack</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+        <span class="n">freevm</span><span class="p">(</span><span class="n">p</span><span class="o">-&gt;</span><span class="n">pgdir</span><span class="p">);</span>
+        
+          												<span class="c1">//SML modified</span>
+        <span class="cp">#if defined SML
+</span>        <span class="k">switch</span><span class="p">(</span><span class="n">p</span><span class="o">-&gt;</span><span class="n">priority</span><span class="p">){</span>                    <span class="c1">//删除等待队列中的进程</span>
+			<span class="k">case</span> <span class="mi">1</span><span class="p">:</span> <span class="n">removeq</span><span class="p">(</span><span class="o">&amp;</span><span class="n">pqueue_1</span><span class="p">,</span> <span class="n">p</span><span class="p">);</span> <span class="k">break</span><span class="p">;</span>
+	     	<span class="k">case</span> <span class="mi">2</span><span class="p">:</span> <span class="n">removeq</span><span class="p">(</span><span class="o">&amp;</span><span class="n">pqueue_2</span><span class="p">,</span> <span class="n">p</span><span class="p">);</span> <span class="k">break</span><span class="p">;</span>
+	     	<span class="k">case</span> <span class="mi">3</span><span class="p">:</span> <span class="n">removeq</span><span class="p">(</span><span class="o">&amp;</span><span class="n">pqueue_3</span><span class="p">,</span> <span class="n">p</span><span class="p">);</span> <span class="k">break</span><span class="p">;</span>
+	     	<span class="k">case</span> <span class="mi">4</span><span class="p">:</span> <span class="n">removeq</span><span class="p">(</span><span class="o">&amp;</span><span class="n">pqueue_4</span><span class="p">,</span> <span class="n">p</span><span class="p">);</span> <span class="k">break</span><span class="p">;</span>
+	     	<span class="nl">default:</span> <span class="p">;</span>
+		<span class="p">}</span>
+		<span class="cp">#endif
+</span>	
+        <span class="n">p</span><span class="o">-&gt;</span><span class="n">pid</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+        <span class="n">p</span><span class="o">-&gt;</span><span class="n">parent</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+        <span class="n">p</span><span class="o">-&gt;</span><span class="n">name</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+        <span class="n">p</span><span class="o">-&gt;</span><span class="n">killed</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+        												<span class="c1">// modified</span>
+        <span class="n">p</span><span class="o">-&gt;</span><span class="n">ctime</span><span class="o">=</span><span class="mi">0</span><span class="p">;</span>
+        <span class="n">p</span><span class="o">-&gt;</span><span class="n">rutime</span><span class="o">=</span><span class="mi">0</span><span class="p">;</span>
+        <span class="n">p</span><span class="o">-&gt;</span><span class="n">retime</span><span class="o">=</span><span class="mi">0</span><span class="p">;</span>
+        <span class="n">p</span><span class="o">-&gt;</span><span class="n">sltime</span><span class="o">=</span><span class="mi">0</span><span class="p">;</span>
+
+        												<span class="c1">// end</span>
+        <span class="n">p</span><span class="o">-&gt;</span><span class="n">state</span> <span class="o">=</span> <span class="n">UNUSED</span><span class="p">;</span>
+        <span class="n">release</span><span class="p">(</span><span class="o">&amp;</span><span class="n">ptable</span><span class="p">.</span><span class="n">lock</span><span class="p">);</span>
+</code></pre></td></tr></tbody></table></div></div>
+
+<p>调度器的算法则跟之前较为不同。RR和静态优先级调度<code class="language-plaintext highlighter-rouge">scheduler</code>都是内循环遍历整个表，每次寻找最高优先级或第一个RUNNABLE进程进行调度，现在，静态多级反馈队列不用遍历整个表，它从最高优先级队列开始找起，如果某个队列里面有RUNNABLE的进程，就运行它，否则就往下一个优先级队列继续寻找：</p>
+
+<div class="language-c highlighter-rouge"><div class="highlight"><table style="margin: 0px"><tbody><tr><td class="gutter"><pre>1<br/>2<br/>3<br/>4<br/>5<br/>6<br/>7<br/>8<br/>9<br/>10<br/>11<br/>12<br/>13<br/>14<br/>15<br/>16<br/>17<br/>18<br/>19<br/>20<br/>21<br/>22<br/>23<br/>24<br/>25<br/>26<br/>27<br/>28<br/>29<br/>30<br/>31<br/>32<br/>33<br/>34<br/>35<br/>36<br/>37<br/>38<br/>39<br/>40<br/>41<br/>42<br/>43<br/>44<br/>45<br/>46<br/>47<br/>48<br/>49<br/>50<br/>51<br/>52<br/>53<br/>54<br/>55<br/>56<br/>57<br/>58<br/>59<br/>60<br/>61<br/>62<br/>63<br/>64<br/>65<br/>66<br/>67<br/>68</pre></td><td class="code"><pre class="highlight"><code>    <span class="cp">#if defined RR ||PRIORITY
+</span>    <span class="k">for</span><span class="p">(</span><span class="n">p</span> <span class="o">=</span> <span class="n">ptable</span><span class="p">.</span><span class="n">proc</span><span class="p">;</span> <span class="n">p</span> <span class="o">&lt;</span> <span class="o">&amp;</span><span class="n">ptable</span><span class="p">.</span><span class="n">proc</span><span class="p">[</span><span class="n">NPROC</span><span class="p">];</span> <span class="n">p</span><span class="o">++</span><span class="p">){</span>
+
+      <span class="cp">#if defined RR
+</span>      <span class="k">if</span><span class="p">(</span><span class="n">p</span><span class="o">-&gt;</span><span class="n">state</span> <span class="o">!=</span> <span class="n">RUNNABLE</span><span class="p">)</span>
+        <span class="k">continue</span><span class="p">;</span>
+
+      <span class="cp">#elif defined PRIORITY
+</span>      <span class="k">struct</span> <span class="n">proc</span> <span class="o">*</span><span class="n">pnow</span><span class="p">;</span>
+      <span class="k">struct</span> <span class="n">proc</span> <span class="o">*</span><span class="n">phigh</span><span class="o">=</span><span class="mi">0</span><span class="p">;</span>
+
+      <span class="k">if</span><span class="p">(</span><span class="n">p</span><span class="o">-&gt;</span><span class="n">state</span><span class="o">!=</span> <span class="n">RUNNABLE</span><span class="p">)</span>
+         <span class="k">continue</span><span class="p">;</span>
+      
+      <span class="n">phigh</span> <span class="o">=</span> <span class="n">p</span><span class="p">;</span>
+      <span class="k">for</span><span class="p">(</span> <span class="n">pnow</span> <span class="o">=</span> <span class="n">ptable</span><span class="p">.</span><span class="n">proc</span><span class="p">;</span> <span class="n">pnow</span><span class="o">&lt;&amp;</span><span class="n">ptable</span><span class="p">.</span><span class="n">proc</span><span class="p">[</span><span class="n">NPROC</span><span class="p">];</span> <span class="n">pnow</span><span class="o">++</span><span class="p">){</span>
+        <span class="k">if</span><span class="p">(</span><span class="n">pnow</span><span class="o">-&gt;</span><span class="n">state</span><span class="o">!=</span><span class="n">RUNNABLE</span><span class="p">)</span>
+          <span class="k">continue</span><span class="p">;</span>
+        <span class="k">if</span><span class="p">(</span><span class="n">pnow</span><span class="o">-&gt;</span><span class="n">priority</span> <span class="o">&lt;</span> <span class="n">phigh</span><span class="o">-&gt;</span><span class="n">priority</span><span class="p">){</span>
+	  <span class="n">phigh</span> <span class="o">=</span> <span class="n">pnow</span><span class="p">;</span>
+	<span class="p">}</span>
+      <span class="p">}</span>
+      <span class="n">p</span> <span class="o">=</span> <span class="n">phigh</span><span class="p">;</span>
+      <span class="cp">#endif
+</span>  
+      
+
+      <span class="c1">// Switch to chosen process.  It is the process's job</span>
+      <span class="c1">// to release ptable.lock and then reacquire it</span>
+      <span class="c1">// before jumping back to us.</span>
+      <span class="k">if</span><span class="p">(</span><span class="n">p</span><span class="o">!=</span><span class="mi">0</span><span class="p">){</span>
+         <span class="n">cprintf</span><span class="p">(</span><span class="s">"%d is being scheduled on cpu: %d, its priority is %d.</span><span class="se">\n</span><span class="s">"</span><span class="p">,</span> <span class="n">p</span><span class="o">-&gt;</span><span class="n">pid</span><span class="p">,</span> <span class="n">c</span><span class="o">-&gt;</span><span class="n">apicid</span><span class="p">,</span> <span class="n">p</span><span class="o">-&gt;</span><span class="n">priority</span><span class="p">);</span>
+	 <span class="n">c</span><span class="o">-&gt;</span><span class="n">proc</span> <span class="o">=</span> <span class="n">p</span><span class="p">;</span>
+         <span class="n">switchuvm</span><span class="p">(</span><span class="n">p</span><span class="p">);</span>
+	 <span class="n">p</span><span class="o">-&gt;</span><span class="n">state</span> <span class="o">=</span> <span class="n">RUNNING</span><span class="p">;</span>
+
+	 <span class="n">swtch</span><span class="p">(</span><span class="o">&amp;</span><span class="p">(</span><span class="n">c</span><span class="o">-&gt;</span><span class="n">scheduler</span><span class="p">),</span> <span class="n">p</span><span class="o">-&gt;</span><span class="n">context</span><span class="p">);</span>
+         <span class="n">switchkvm</span><span class="p">();</span>
+
+	 <span class="c1">// Process is done running for now.</span>
+	 <span class="c1">// It should have changed its p-&gt;state before coming back.</span>
+	 <span class="n">c</span><span class="o">-&gt;</span><span class="n">proc</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+      <span class="p">}</span>
+    <span class="p">}</span>
+    <span class="cp">#endif
+</span>                                      <span class="c1">//=====================modified begin ================//</span>
+    <span class="cp">#if defined SML                            //多级反馈队列从这里开始
+</span>    <span class="n">p</span> <span class="o">=</span> <span class="n">headq</span><span class="p">(</span><span class="o">&amp;</span><span class="n">pqueue_1</span><span class="p">);</span>
+    <span class="k">if</span><span class="p">(</span><span class="n">p</span><span class="o">==</span><span class="mi">0</span><span class="p">)</span>
+      <span class="n">p</span><span class="o">=</span><span class="n">headq</span><span class="p">(</span><span class="o">&amp;</span><span class="n">pqueue_2</span><span class="p">);</span>
+    <span class="k">if</span><span class="p">(</span><span class="n">p</span><span class="o">==</span><span class="mi">0</span><span class="p">)</span>
+      <span class="n">p</span><span class="o">=</span><span class="n">headq</span><span class="p">(</span><span class="o">&amp;</span><span class="n">pqueue_3</span><span class="p">);</span>
+    <span class="k">if</span><span class="p">(</span><span class="n">p</span><span class="o">==</span><span class="mi">0</span><span class="p">)</span>
+      <span class="n">p</span><span class="o">=</span><span class="n">headq</span><span class="p">(</span><span class="o">&amp;</span><span class="n">pqueue_4</span><span class="p">);</span>
+    <span class="k">if</span><span class="p">(</span><span class="n">p</span><span class="p">){</span>                          <span class="c1">//若找得到进程，则运行它，否则暂时释放ptable锁，开启中断，然后再次获取ptable锁，继续从第一优先级队列开始寻找</span>
+         <span class="n">cprintf</span><span class="p">(</span><span class="s">"%d is being scheduled on cpu: %d, its priority is %d.</span><span class="se">\n</span><span class="s">"</span><span class="p">,</span> <span class="n">p</span><span class="o">-&gt;</span><span class="n">pid</span><span class="p">,</span> <span class="n">c</span><span class="o">-&gt;</span><span class="n">apicid</span><span class="p">,</span> <span class="n">p</span><span class="o">-&gt;</span><span class="n">priority</span><span class="p">);</span>
+	     <span class="n">c</span><span class="o">-&gt;</span><span class="n">proc</span> <span class="o">=</span> <span class="n">p</span><span class="p">;</span>
+         <span class="n">switchuvm</span><span class="p">(</span><span class="n">p</span><span class="p">);</span>
+	     <span class="n">p</span><span class="o">-&gt;</span><span class="n">state</span> <span class="o">=</span> <span class="n">RUNNING</span><span class="p">;</span>
+
+	     <span class="n">swtch</span><span class="p">(</span><span class="o">&amp;</span><span class="p">(</span><span class="n">c</span><span class="o">-&gt;</span><span class="n">scheduler</span><span class="p">),</span> <span class="n">p</span><span class="o">-&gt;</span><span class="n">context</span><span class="p">);</span>
+         <span class="n">switchkvm</span><span class="p">();</span>
+
+	 <span class="c1">// Process is done running for now.</span>
+	 <span class="c1">// It should have changed its p-&gt;state before coming back.</span>
+	     <span class="n">c</span><span class="o">-&gt;</span><span class="n">proc</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+     <span class="p">}</span>
+    <span class="cp">#endif  
+</span></code></pre></td></tr></tbody></table></div></div>
+
+<p>当调用<code class="language-plaintext highlighter-rouge">set_priority</code>时，有可能进程的优先级改变，则要将它从旧的优先级队列中删除并放到新的优先级队列中：</p>
+
+<div class="language-c highlighter-rouge"><div class="highlight"><table style="margin: 0px"><tbody><tr><td class="gutter"><pre>1<br/>2<br/>3<br/>4<br/>5<br/>6<br/>7<br/>8<br/>9<br/>10<br/>11<br/>12<br/>13<br/>14<br/>15<br/>16<br/>17<br/>18<br/>19<br/>20<br/>21<br/>22<br/>23<br/>24<br/>25<br/>26<br/>27<br/>28<br/>29<br/>30<br/>31<br/>32<br/>33<br/>34<br/>35<br/>36<br/>37<br/>38</pre></td><td class="code"><pre class="highlight"><code><span class="kt">int</span>
+<span class="nf">set_priority</span><span class="p">(</span><span class="kt">int</span> <span class="n">pid</span><span class="p">,</span> <span class="kt">int</span> <span class="n">priority</span><span class="p">)</span>
+<span class="p">{</span>
+    <span class="k">struct</span> <span class="n">proc</span> <span class="o">*</span><span class="n">p</span><span class="o">=</span><span class="mi">0</span><span class="p">;</span>
+    <span class="n">acquire</span><span class="p">(</span><span class="o">&amp;</span><span class="n">ptable</span><span class="p">.</span><span class="n">lock</span><span class="p">);</span>
+    <span class="k">for</span><span class="p">(</span><span class="n">p</span><span class="o">=</span><span class="n">ptable</span><span class="p">.</span><span class="n">proc</span><span class="p">;</span> <span class="n">p</span><span class="o">&lt;</span> <span class="o">&amp;</span><span class="n">ptable</span><span class="p">.</span><span class="n">proc</span><span class="p">[</span><span class="n">NPROC</span><span class="p">];</span> <span class="n">p</span><span class="o">++</span><span class="p">){</span>
+       <span class="k">if</span><span class="p">(</span><span class="n">p</span><span class="o">-&gt;</span><span class="n">pid</span> <span class="o">==</span> <span class="n">pid</span><span class="p">){</span>
+       
+           <span class="cp">#if defined SML
+</span>           <span class="k">if</span><span class="p">(</span><span class="n">p</span><span class="o">-&gt;</span><span class="n">priority</span><span class="o">!=</span><span class="n">priority</span><span class="p">){</span>
+           	<span class="k">switch</span><span class="p">(</span><span class="n">p</span><span class="o">-&gt;</span><span class="n">priority</span><span class="p">){</span>
+           	    <span class="k">case</span> <span class="mi">1</span><span class="p">:</span> <span class="n">removeq</span><span class="p">(</span><span class="o">&amp;</span><span class="n">pqueue_1</span><span class="p">,</span> <span class="n">p</span><span class="p">);</span>   <span class="k">break</span><span class="p">;</span>
+           	    <span class="k">case</span> <span class="mi">2</span><span class="p">:</span> <span class="n">removeq</span><span class="p">(</span><span class="o">&amp;</span><span class="n">pqueue_2</span><span class="p">,</span> <span class="n">p</span><span class="p">);</span>   <span class="k">break</span><span class="p">;</span>
+           	    <span class="k">case</span> <span class="mi">3</span><span class="p">:</span> <span class="n">removeq</span><span class="p">(</span><span class="o">&amp;</span><span class="n">pqueue_3</span><span class="p">,</span> <span class="n">p</span><span class="p">);</span>   <span class="k">break</span><span class="p">;</span>
+           	    <span class="k">case</span> <span class="mi">4</span><span class="p">:</span> <span class="n">removeq</span><span class="p">(</span><span class="o">&amp;</span><span class="n">pqueue_4</span><span class="p">,</span> <span class="n">p</span><span class="p">);</span>   <span class="k">break</span><span class="p">;</span>
+           	    <span class="nl">default:</span> <span class="p">;</span>
+           	<span class="p">}</span>
+           	<span class="k">switch</span><span class="p">(</span><span class="n">priority</span><span class="p">){</span>
+		       <span class="k">case</span> <span class="mi">1</span><span class="p">:</span> <span class="n">enqueue</span><span class="p">(</span><span class="o">&amp;</span><span class="n">pqueue_1</span><span class="p">,</span> <span class="n">p</span><span class="p">);</span>   <span class="k">break</span><span class="p">;</span>
+		       <span class="k">case</span> <span class="mi">2</span><span class="p">:</span> <span class="n">enqueue</span><span class="p">(</span><span class="o">&amp;</span><span class="n">pqueue_2</span><span class="p">,</span> <span class="n">p</span><span class="p">);</span>   <span class="k">break</span><span class="p">;</span>
+		       <span class="k">case</span> <span class="mi">3</span><span class="p">:</span> <span class="n">enqueue</span><span class="p">(</span><span class="o">&amp;</span><span class="n">pqueue_3</span><span class="p">,</span> <span class="n">p</span><span class="p">);</span>   <span class="k">break</span><span class="p">;</span>
+		       <span class="k">case</span> <span class="mi">4</span><span class="p">:</span> <span class="n">enqueue</span><span class="p">(</span><span class="o">&amp;</span><span class="n">pqueue_4</span><span class="p">,</span> <span class="n">p</span><span class="p">);</span>   <span class="k">break</span><span class="p">;</span>
+		       <span class="nl">default:</span> <span class="p">;</span>
+		<span class="p">}</span>
+           <span class="p">}</span>
+           <span class="cp">#endif
+</span>           
+           
+           <span class="n">p</span><span class="o">-&gt;</span><span class="n">priority</span><span class="o">=</span><span class="n">priority</span><span class="p">;</span>
+    
+           <span class="n">release</span><span class="p">(</span><span class="o">&amp;</span><span class="n">ptable</span><span class="p">.</span><span class="n">lock</span><span class="p">);</span>
+           <span class="k">return</span> <span class="mi">0</span><span class="p">;</span>
+       <span class="p">}</span>          
+    <span class="p">}</span>
+
+    <span class="n">release</span><span class="p">(</span><span class="o">&amp;</span><span class="n">ptable</span><span class="p">.</span><span class="n">lock</span><span class="p">);</span>
+    <span class="k">return</span> <span class="o">-</span><span class="mi">1</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></td></tr></tbody></table></div></div>
+
+<p>多级反馈队列实现已经完成。将它编译，执行<code class="language-plaintext highlighter-rouge">priority_sta.c</code>，还是将子进程数目设置为4，得到如下输出：</p>
+
+<p><img src="/assets/images/report/oslab43-6.png" alt="" /></p>
+
+<p>进程3是父进程，4，5，6，7分别是4个子进程，优先级被设置为1，2，3，4. 可以看到，每个进程在fork完成之前，都先进入了默认的第二优先级队列。当调用<code class="language-plaintext highlighter-rouge">set_priority</code>时，每个进程都从原来的queue 2离开，进入到相应新的队列中（进程5除外，进程5本来就在queue 2中）。当所有进程都创建好之后，因为3比5先到达，则只有进程3和4可以被调度；当进程3在倒数第二行进入休眠之后，进程5才可以得到调度。</p>
+
+<p><img src="/assets/images/report/oslab43-2.png" alt="" /></p>
+
+<p>然后，等进程4退出并被回收了，它从queue 1中被删除。当进程3进入休眠的时候，进程5和6可以得到调度，在这整个过程中，进程7的优先级都不足，无法被调度。而当进程6进入休眠时，进程7才和5一起被调度。说明算法逻辑正确。</p>
+
+<p>统计多级反馈下程序运行时间：</p>
+
+<p><img src="/assets/images/report/oslab43-7.png" alt="" /></p>
+
+<p>这个结果是符合预期的，如果程序执行的内容都一样，优先级越低，周转时间应该越长，因为更高优先级的进程应该更早被调度。</p>
+
+<hr />
+
+<h2 id="简单比较">简单比较</h2>
+
+<p>比较所有进程的平均轮转时间：</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>进程个数</th>
+      <th>RR</th>
+      <th>静态优先级</th>
+      <th>多级反馈队列</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>4</td>
+      <td>6</td>
+      <td>4</td>
+      <td>4</td>
+    </tr>
+    <tr>
+      <td>10</td>
+      <td>8</td>
+      <td>4</td>
+      <td>7</td>
+    </tr>
+    <tr>
+      <td>30</td>
+      <td>15</td>
+      <td>10</td>
+      <td>17</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>（轮转时间的计算跟机器状态也有关系，有些时候机器运转较快，则用户程序的运行和调度算法都比较快，测得时间就会少）</p>
+
+<p>如果忽略机器状况的因素，可以发现RR算法的平均轮转时间在进程个数一定时是多于静态优先级调度的。这是因为所有进程轮流调度，本来可以更早结束的进程时间被延长了；而静态优先级调度虽然低优先级的进程周转时间比平均长很多，但优先级高的进程周转时间也对应地低很多，并且如果先来先服务，高优先级进程基本上可以到达之后就一直进行直到结束，所以平均周转时间可能会更好。</p>
+
+<p>但也要考虑算法的花销。在进程个数很多的时候，多级反馈队列每一次插入和删除的开销会快速增长，这导致进程的等待时间变得非常长。</p>
+
+<p>为了缓解饥饿的问题，可以对优先级调度算法进行优化，采用动态的多级反馈队列：</p>
+
+<ul>
+  <li>
+    <p>进程刚开始时进入最高优先级队列。</p>
+  </li>
+  <li>不同的优先级队列中，进程有不同的时间片。优先级越高，时间片越短。这样，低优先级进程可以有更多机会完成任务。</li>
+  <li>每运行完一个/k个时间片，进程就下降优先级，最低优先级的进程反而重新回到最高优先级</li>
+</ul>
+
+<p>这样做的好处是，进程刚开始创建优先级最高，可以有更快的响应时间；优先级随着进程运行下降，则可以偏向短作业，让短作业更快结束，从而缩短等待时间；每隔一段时间就将最低优先级的进程提高到高优先级，这样可以防止饥饿发生。</p>
+
+<p>但是，动态多级反馈队列显然需要更多的算法花销，不同时间片的设计更为复杂，且需要设计每个优先级适当的时间片大小，以及按进程特性决定创建时进入哪个队列。即便如此，动态多级反馈队列仍然是一种比较优的算法。</p>
+
+
+      
+    </div>
+
+    <div>
+      
+        
+
+      
+    </div>
+
+    <div>
+      
+        
+
+      
+    </div>
+
+    <div>
+      
+        
+
+      
+    </div>
+
+    <footer class="post-footer">
+      
+        <div class="post-tags">
+          
+            
+            <a href="/tag/#/OS" rel="tag"># OS</a>
+          
+            
+            <a href="/tag/#/xv6" rel="tag"># xv6</a>
+          
+            
+            <a href="/tag/#/scheduling" rel="tag"># scheduling</a>
+          
+        </div>
+      
+
+      
+      
+      
+      
+      
+
+      
+      
+        <div class="post-nav" id="post-nav-id">
+          <div class="post-nav-next post-nav-item">
+            
+              <a href="/lab%20report/2020/01/31/OS4/" rel="next" title="OS操作系统实验：xv6调度(RR, 优先级调度, 优先级队列） 实现和分析 Part 1- xv6代码讲解">
+                <i class="fa fa-chevron-left"></i> OS操作系统实验：xv6调度(RR, 优先级调度, 优先级队列） 实现和分析 Part 1- xv6代码讲解
+              </a>
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+              <a href="/lab%20report/2020/01/31/OS4-2/" rel="prev" title="OS操作系统实验：xv6调度(RR, 优先级调度, 优先级队列） 实现和分析 Part 2- xv6 RR调度情况统计">
+                OS操作系统实验：xv6调度(RR, 优先级调度, 优先级队列） 实现和分析 Part 2- xv6 RR调度情况统计 <i class="fa fa-chevron-right"></i>
+              </a>
+            
+          </div>
+        </div>
+      
+      
+
+      
+    </footer>
+  </article>
+
+  <div class="post-spread">
+    
+  </div>
+</div>
+
+
+          </div>
+          
+
+
+          
+  <div class="comments" id="comments">
+    
+      <div class="wildfire_thread"></div>
+    
+  </div>
+
+
+        </div>
+        
+          
+
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    <div class="sidebar-inner">
+
+      
+        
+        
+        
+
+
+
+
+
+
+
+      
+
+      
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap" >
+            Table of Contents
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview">
+            Overview
+          </li>
+        </ul>
+      
+
+      <section class="site-overview sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+          <img class="site-author-image" itemprop="image"
+               src="/assets/images/avatar.jpg"
+               alt="Shutong Chen" />
+          <p class="site-author-name" itemprop="name">Shutong Chen</p>
+           
+              <p class="site-description motion-element" itemprop="description">CS student in junior year, Fudan University</p>
+          
+        </div>
+        <nav class="site-state motion-element">
+
+          
+            <div class="site-state-item site-state-posts">
+              <a href="/archives/">
+                <span class="site-state-item-count">4</span>
+                <span class="site-state-item-name">posts</span>
+              </a>
+            </div>
+          
+
+          
+            
+            
+            <div class="site-state-item site-state-categories">
+              <a href="/categories/">
+                <span class="site-state-item-count">2</span>
+                <span class="site-state-item-name">categories</span>
+              </a>
+            </div>
+          
+
+          
+            
+            
+            <div class="site-state-item site-state-tags">
+              <a href="/tags/">
+                <span class="site-state-item-count">5</span>
+                <span class="site-state-item-name">tags</span>
+              </a>
+            </div>
+          
+
+        </nav>
+
+        
+        
+        
+          <div class="feed-link motion-element">
+            <a href="/atom.xml" rel="alternate">
+              <i class="fa fa-rss"></i>
+              RSS
+            </a>
+          </div>
+        
+
+        <div class="links-of-author motion-element">
+          
+            
+              
+              
+              <span class="links-of-author-item">
+                <a href="https://github.com/sillywutong" target="_blank" title="GitHub">
+                  
+                    <i class="fa fa-fw fa-github"></i>
+                  
+                  GitHub
+                </a>
+              </span>
+            
+              
+              
+              <span class="links-of-author-item">
+                <a href="https://weibo.com/sillywutong" target="_blank" title="微博">
+                  
+                    <i class="fa fa-fw fa-globe"></i>
+                  
+                  微博
+                </a>
+              </span>
+            
+          
+        </div>
+
+        
+        
+
+        
+        
+
+        
+
+
+      </section>
+
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+            
+            
+            
+
+
+
+
+
+
+
+
+            
+              <div class="post-toc-content">
+    <ol class=nav>
+      <li class="nav-item nav-level-2"> <a class="nav-link" href="#todo3--实现优先级调度算法"> <span class="nav-number">1</span> <span class="nav-text">TODO3: 实现优先级调度算法</span> </a> <ol class="nav-child"> <li class="nav-item nav-level-3"> <a class="nav-link" href="#静态优先级调度"> <span class="nav-number">1.1</span> <span class="nav-text">静态优先级调度</span> </a> </li> <li class="nav-item nav-level-3"> <a class="nav-link" href="#静态多级反馈队列"> <span class="nav-number">1.2</span> <span class="nav-text">静态多级反馈队列</span> </a> </li> </ol> </li> <li class="nav-item nav-level-2"> <a class="nav-link" href="#简单比较"> <span class="nav-number">2</span> <span class="nav-text">简单比较</span> </a> </li>
+    </ol>
+  </div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
+      
+
+      
+
+    </div>
+  </aside>
+
+        
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright" >
+  
+  
+  &copy; 
+  <span itemprop="copyrightYear">2020</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Shutong Chen</span>
+</div>
+
+
+<div class="powered-by">
+  Powered by <a class="theme-link" href="https://jekyllrb.com">Jekyll</a>
+</div>
+
+<div class="theme-info">
+  Theme -
+  <a class="theme-link" href="https://github.com/simpleyyt/jekyll-theme-next">
+    NexT.Muse
+  </a>
+</div>
+
+
+        
+
+        
+      </div>
+    </footer>
+
+    
+      <div class="back-to-top">
+        <i class="fa fa-arrow-up"></i>
+        
+      </div>
+    
+
+  </div>
+
+  
+
+<script type="text/javascript">
+  if (Object.prototype.toString.call(window.Promise) !== '[object Function]') {
+    window.Promise = null;
+  }
+</script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+   
+  
+  
+  
+  
+  
+  <script type="text/javascript" src="/assets/lib/jquery/index.js?v=2.1.3"></script>
+
+  
+  
+  
+  
+  
+  <script type="text/javascript" src="/assets/lib/fastclick/lib/fastclick.min.js?v=1.0.6"></script>
+
+  
+  
+  
+  
+  
+  <script type="text/javascript" src="/assets/lib/jquery_lazyload/jquery.lazyload.js?v=1.9.7"></script>
+
+  
+  
+  
+  
+  
+  <script type="text/javascript" src="/assets/lib/velocity/velocity.min.js?v=1.2.1"></script>
+
+  
+  
+  
+  
+  
+  <script type="text/javascript" src="/assets/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+
+  
+  
+  
+  
+  
+  <script type="text/javascript" src="/assets/lib/fancybox/source/jquery.fancybox.pack.js?v=2.1.5"></script>
+
+
+  
+
+
+  <script type="text/javascript" src="/assets/js/src/utils.js?v=5.1.1"></script>
+
+  <script type="text/javascript" src="/assets/js/src/motion.js?v=5.1.1"></script>
+
+
+
+  
+  
+
+  <script type="text/javascript" src="/assets/js/src/scrollspy.js?v=5.1.1"></script>
+<script type="text/javascript" src="/assets/js/src/post-details.js?v=5.1.1"></script>
+
+
+  
+
+
+  <script type="text/javascript" src="/assets/js/src/bootstrap.js?v=5.1.1"></script>
+
+
+
+  
+
+
+  
+
+
+
+
+	
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+  
+
+    
+
+  
+
+
+
+
+
+  <script type="text/javascript">
+    var wildfireConfig = () => ({
+      
+      useDev: true,
+      
+      
+      version: '0.5.6',
+      
+      databaseProvider: 'firebase',
+      databaseConfig: {
+        
+        apiKey: 'AIzaSyBfR8WwkHnr8Np6SCmYBIelDeLsg1O9reE',
+        authDomain: 'githubblog-b6de2.firebaseapp.com',
+        databaseURL: 'https://githubblog-b6de2.firebaseio.com',
+        projectId: 'githubblog-b6de2',
+        storageBucket: 'githubblog-b6de2.appspot.com',
+        messagingSenderId: '812229193086'
+        
+      },
+      pageURL: 'http://localhost:4000/lab%20report/2020/01/31/OS4-3/',
+      pageTitle: 'OS操作系统实验：xv6调度(RR, 优先级调度, 优先级队列） 实现和分析 Part 3- xv6 优先级调度算法实现',
+      
+      theme: 'light',
+      
+      
+      locale: 'en',
+      
+      
+    });
+  </script>
+  
+    
+    <script src="https://unpkg.com/wildfire-comment@1.2.5"></script>
+    
+  
+  <script src="https://unpkg.com/wf-count"></script>
+
+
+
+  
+
+
+  <script type="text/javascript">
+    // Popup Window;
+    var isfetched = false;
+    var isXml = true;
+    // Search DB path;
+    var search_path = "";
+    if (search_path.length === 0) {
+      search_path = "search.xml";
+    } else if (/json$/i.test(search_path)) {
+      isXml = false;
+    }
+    var path = "/" + search_path;
+    // monitor main search box;
+
+    var onPopupClose = function (e) {
+      $('.popup').hide();
+      $('#local-search-input').val('');
+      $('.search-result-list').remove();
+      $('#no-result').remove();
+      $(".local-search-pop-overlay").remove();
+      $('body').css('overflow', '');
+    }
+
+    function proceedsearch() {
+      $("body")
+        .append('<div class="search-popup-overlay local-search-pop-overlay"></div>')
+        .css('overflow', 'hidden');
+      $('.search-popup-overlay').click(onPopupClose);
+      $('.popup').toggle();
+      var $localSearchInput = $('#local-search-input');
+      $localSearchInput.attr("autocapitalize", "none");
+      $localSearchInput.attr("autocorrect", "off");
+      $localSearchInput.focus();
+    }
+
+    // search function;
+    var searchFunc = function(path, search_id, content_id) {
+      'use strict';
+
+      // start loading animation
+      $("body")
+        .append('<div class="search-popup-overlay local-search-pop-overlay">' +
+          '<div id="search-loading-icon">' +
+          '<i class="fa fa-spinner fa-pulse fa-5x fa-fw"></i>' +
+          '</div>' +
+          '</div>')
+        .css('overflow', 'hidden');
+      $("#search-loading-icon").css('margin', '20% auto 0 auto').css('text-align', 'center');
+
+      $.ajax({
+        url: path,
+        dataType: isXml ? "xml" : "json",
+        async: true,
+        success: function(res) {
+          // get the contents from search data
+          isfetched = true;
+          $('.popup').detach().appendTo('.header-inner');
+          var datas = isXml ? $("entry", res).map(function() {
+            return {
+              title: $("title", this).text(),
+              content: $("content",this).text(),
+              url: $("url" , this).text()
+            };
+          }).get() : res;
+          var input = document.getElementById(search_id);
+          var resultContent = document.getElementById(content_id);
+          var inputEventFunction = function() {
+            var searchText = input.value.trim().toLowerCase();
+            var keywords = searchText.split(/[\s\-]+/);
+            if (keywords.length > 1) {
+              keywords.push(searchText);
+            }
+            var resultItems = [];
+            if (searchText.length > 0) {
+              // perform local searching
+              datas.forEach(function(data) {
+                var isMatch = false;
+                var hitCount = 0;
+                var searchTextCount = 0;
+                var title = data.title.trim();
+                var titleInLowerCase = title.toLowerCase();
+                var content = data.content.trim().replace(/<[^>]+>/g,"");
+                var contentInLowerCase = content.toLowerCase();
+                var articleUrl = decodeURIComponent(data.url);
+                var indexOfTitle = [];
+                var indexOfContent = [];
+                // only match articles with not empty titles
+                if(title != '') {
+                  keywords.forEach(function(keyword) {
+                    function getIndexByWord(word, text, caseSensitive) {
+                      var wordLen = word.length;
+                      if (wordLen === 0) {
+                        return [];
+                      }
+                      var startPosition = 0, position = [], index = [];
+                      if (!caseSensitive) {
+                        text = text.toLowerCase();
+                        word = word.toLowerCase();
+                      }
+                      while ((position = text.indexOf(word, startPosition)) > -1) {
+                        index.push({position: position, word: word});
+                        startPosition = position + wordLen;
+                      }
+                      return index;
+                    }
+
+                    indexOfTitle = indexOfTitle.concat(getIndexByWord(keyword, titleInLowerCase, false));
+                    indexOfContent = indexOfContent.concat(getIndexByWord(keyword, contentInLowerCase, false));
+                  });
+                  if (indexOfTitle.length > 0 || indexOfContent.length > 0) {
+                    isMatch = true;
+                    hitCount = indexOfTitle.length + indexOfContent.length;
+                  }
+                }
+
+                // show search results
+
+                if (isMatch) {
+                  // sort index by position of keyword
+
+                  [indexOfTitle, indexOfContent].forEach(function (index) {
+                    index.sort(function (itemLeft, itemRight) {
+                      if (itemRight.position !== itemLeft.position) {
+                        return itemRight.position - itemLeft.position;
+                      } else {
+                        return itemLeft.word.length - itemRight.word.length;
+                      }
+                    });
+                  });
+
+                  // merge hits into slices
+
+                  function mergeIntoSlice(text, start, end, index) {
+                    var item = index[index.length - 1];
+                    var position = item.position;
+                    var word = item.word;
+                    var hits = [];
+                    var searchTextCountInSlice = 0;
+                    while (position + word.length <= end && index.length != 0) {
+                      if (word === searchText) {
+                        searchTextCountInSlice++;
+                      }
+                      hits.push({position: position, length: word.length});
+                      var wordEnd = position + word.length;
+
+                      // move to next position of hit
+
+                      index.pop();
+                      while (index.length != 0) {
+                        item = index[index.length - 1];
+                        position = item.position;
+                        word = item.word;
+                        if (wordEnd > position) {
+                          index.pop();
+                        } else {
+                          break;
+                        }
+                      }
+                    }
+                    searchTextCount += searchTextCountInSlice;
+                    return {
+                      hits: hits,
+                      start: start,
+                      end: end,
+                      searchTextCount: searchTextCountInSlice
+                    };
+                  }
+
+                  var slicesOfTitle = [];
+                  if (indexOfTitle.length != 0) {
+                    slicesOfTitle.push(mergeIntoSlice(title, 0, title.length, indexOfTitle));
+                  }
+
+                  var slicesOfContent = [];
+                  while (indexOfContent.length != 0) {
+                    var item = indexOfContent[indexOfContent.length - 1];
+                    var position = item.position;
+                    var word = item.word;
+                    // cut out 100 characters
+                    var start = position - 20;
+                    var end = position + 80;
+                    if(start < 0){
+                      start = 0;
+                    }
+                    if (end < position + word.length) {
+                      end = position + word.length;
+                    }
+                    if(end > content.length){
+                      end = content.length;
+                    }
+                    slicesOfContent.push(mergeIntoSlice(content, start, end, indexOfContent));
+                  }
+
+                  // sort slices in content by search text's count and hits' count
+
+                  slicesOfContent.sort(function (sliceLeft, sliceRight) {
+                    if (sliceLeft.searchTextCount !== sliceRight.searchTextCount) {
+                      return sliceRight.searchTextCount - sliceLeft.searchTextCount;
+                    } else if (sliceLeft.hits.length !== sliceRight.hits.length) {
+                      return sliceRight.hits.length - sliceLeft.hits.length;
+                    } else {
+                      return sliceLeft.start - sliceRight.start;
+                    }
+                  });
+
+                  // select top N slices in content
+
+                  var upperBound = parseInt('1');
+                  if (upperBound >= 0) {
+                    slicesOfContent = slicesOfContent.slice(0, upperBound);
+                  }
+
+                  // highlight title and content
+
+                  function highlightKeyword(text, slice) {
+                    var result = '';
+                    var prevEnd = slice.start;
+                    slice.hits.forEach(function (hit) {
+                      result += text.substring(prevEnd, hit.position);
+                      var end = hit.position + hit.length;
+                      result += '<b class="search-keyword">' + text.substring(hit.position, end) + '</b>';
+                      prevEnd = end;
+                    });
+                    result += text.substring(prevEnd, slice.end);
+                    return result;
+                  }
+
+                  var resultItem = '';
+
+                  if (slicesOfTitle.length != 0) {
+                    resultItem += "<li><a href='" + articleUrl + "' class='search-result-title'>" + highlightKeyword(title, slicesOfTitle[0]) + "</a>";
+                  } else {
+                    resultItem += "<li><a href='" + articleUrl + "' class='search-result-title'>" + title + "</a>";
+                  }
+
+                  slicesOfContent.forEach(function (slice) {
+                    resultItem += "<a href='" + articleUrl + "'>" +
+                      "<p class=\"search-result\">" + highlightKeyword(content, slice) +
+                      "...</p>" + "</a>";
+                  });
+
+                  resultItem += "</li>";
+                  resultItems.push({
+                    item: resultItem,
+                    searchTextCount: searchTextCount,
+                    hitCount: hitCount,
+                    id: resultItems.length
+                  });
+                }
+              })
+            };
+            if (keywords.length === 1 && keywords[0] === "") {
+              resultContent.innerHTML = '<div id="no-result"><i class="fa fa-search fa-5x" /></div>'
+            } else if (resultItems.length === 0) {
+              resultContent.innerHTML = '<div id="no-result"><i class="fa fa-frown-o fa-5x" /></div>'
+            } else {
+              resultItems.sort(function (resultLeft, resultRight) {
+                if (resultLeft.searchTextCount !== resultRight.searchTextCount) {
+                  return resultRight.searchTextCount - resultLeft.searchTextCount;
+                } else if (resultLeft.hitCount !== resultRight.hitCount) {
+                  return resultRight.hitCount - resultLeft.hitCount;
+                } else {
+                  return resultRight.id - resultLeft.id;
+                }
+              });
+              var searchResultList = '<ul class=\"search-result-list\">';
+              resultItems.forEach(function (result) {
+                searchResultList += result.item;
+              })
+              searchResultList += "</ul>";
+              resultContent.innerHTML = searchResultList;
+            }
+          }
+
+          if ('auto' === 'auto') {
+            input.addEventListener('input', inputEventFunction);
+          } else {
+            $('.search-icon').click(inputEventFunction);
+            input.addEventListener('keypress', function (event) {
+              if (event.keyCode === 13) {
+                inputEventFunction();
+              }
+            });
+          }
+
+          // remove loading animation
+          $(".local-search-pop-overlay").remove();
+          $('body').css('overflow', '');
+
+          proceedsearch();
+        }
+      });
+    }
+
+    // handle and trigger popup window;
+    $('.popup-trigger').click(function(e) {
+      e.stopPropagation();
+      if (isfetched === false) {
+        searchFunc(path, 'local-search-input', 'local-search-result');
+      } else {
+        proceedsearch();
+      };
+    });
+
+    $('.popup-btn-close').click(onPopupClose);
+    $('.popup').click(function(e){
+      e.stopPropagation();
+    });
+    $(document).on('keyup', function (event) {
+      var shouldDismissSearchPopup = event.which === 27 &&
+        $('.search-popup').is(':visible');
+      if (shouldDismissSearchPopup) {
+        onPopupClose();
+      }
+    });
+  </script>
+
+
+
+
+
+  
+
+  
+  <script src="https://cdn1.lncld.net/static/js/av-core-mini-0.6.1.js"></script>
+  <script>AV.initialize("Jrde1fjYIi1vvv2280DCd6C2-gzGzoHsz", "VXnQp5diaS1YaLt2pjmWxc8W");</script>
+  <script>
+    function showTime(Counter) {
+      var query = new AV.Query(Counter);
+      var entries = [];
+      var $visitors = $(".leancloud_visitors");
+
+      $visitors.each(function () {
+        entries.push( $(this).attr("id").trim() );
+      });
+
+      query.containedIn('url', entries);
+      query.find()
+        .done(function (results) {
+          var COUNT_CONTAINER_REF = '.leancloud-visitors-count';
+
+          if (results.length === 0) {
+            $visitors.find(COUNT_CONTAINER_REF).text(0);
+            return;
+          }
+
+          for (var i = 0; i < results.length; i++) {
+            var item = results[i];
+            var url = item.get('url');
+            var time = item.get('time');
+            var element = document.getElementById(url);
+
+            $(element).find(COUNT_CONTAINER_REF).text(time);
+          }
+          for(var i = 0; i < entries.length; i++) {
+            var url = entries[i];
+            var element = document.getElementById(url);
+            var countSpan = $(element).find(COUNT_CONTAINER_REF);
+            if( countSpan.text() == '') {
+              countSpan.text(0);
+            }
+          }
+        })
+        .fail(function (object, error) {
+          console.log("Error: " + error.code + " " + error.message);
+        });
+    }
+
+    function addCount(Counter) {
+      var $visitors = $(".leancloud_visitors");
+      var url = $visitors.attr('id').trim();
+      var title = $visitors.attr('data-flag-title').trim();
+      var query = new AV.Query(Counter);
+
+      query.equalTo("url", url);
+      query.find({
+        success: function(results) {
+          if (results.length > 0) {
+            var counter = results[0];
+            counter.fetchWhenSave(true);
+            counter.increment("time");
+            counter.save(null, {
+              success: function(counter) {
+                var $element = $(document.getElementById(url));
+                $element.find('.leancloud-visitors-count').text(counter.get('time'));
+              },
+              error: function(counter, error) {
+                console.log('Failed to save Visitor num, with error message: ' + error.message);
+              }
+            });
+          } else {
+            var newcounter = new Counter();
+            /* Set ACL */
+            var acl = new AV.ACL();
+            acl.setPublicReadAccess(true);
+            acl.setPublicWriteAccess(true);
+            newcounter.setACL(acl);
+            /* End Set ACL */
+            newcounter.set("title", title);
+            newcounter.set("url", url);
+            newcounter.set("time", 1);
+            newcounter.save(null, {
+              success: function(newcounter) {
+                var $element = $(document.getElementById(url));
+                $element.find('.leancloud-visitors-count').text(newcounter.get('time'));
+              },
+              error: function(newcounter, error) {
+                console.log('Failed to create');
+              }
+            });
+          }
+        },
+        error: function(error) {
+          console.log('Error:' + error.code + " " + error.message);
+        }
+      });
+    }
+
+    $(function() {
+      var Counter = AV.Object.extend("Counter");
+      if ($('.leancloud_visitors').length == 1) {
+        addCount(Counter);
+      } else if ($('.post-title-link').length > 1) {
+        showTime(Counter);
+      }
+    });
+  </script>
+
+
+
+  
+
+  
+  
+
+
+  
+  
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({
+        tex2jax: {
+          inlineMath: [ ['$','$'], ["\\(","\\)"]  ],
+          processEscapes: true,
+          skipTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code']
+        }
+      });
+    </script>
+
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Queue(function() {
+        var all = MathJax.Hub.getAllJax(), i;
+        for (i=0; i < all.length; i += 1) {
+          all[i].SourceElement().parentNode.className += ' has-jax';
+        }
+      });
+    </script>
+    <script type="text/javascript" src="//cdn.bootcss.com/mathjax/2.7.1/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
+  
+
+
+  
+
+  
+
+</body>
+</html>
+
