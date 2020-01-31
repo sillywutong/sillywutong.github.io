@@ -389,7 +389,7 @@ disqus:
 
 # <wildfire>
 wildfire:
-  enable: false
+  enable: true
   # version - It's recommended to use the following versions.
   loaderVersion: 1.2.5 # https://www.npmjs.com/package/wildfire-comment
   useDev: true
@@ -397,12 +397,12 @@ wildfire:
   # database config
   databaseProvider: firebase # or wilddog
   firebase: # your firebase config goes here ↓
-    apiKey: 
-    authDomain:
-    databaseURL:
-    projectId:
-    storageBucket:
-    messagingSenderId:
+    apiKey: "AIzaSyBfR8WwkHnr8Np6SCmYBIelDeLsg1O9reE"
+    authDomain: "githubblog-b6de2.firebaseapp.com"
+    databaseURL: "https://githubblog-b6de2.firebaseio.com"
+    projectId: "githubblog-b6de2"
+    storageBucket: "githubblog-b6de2.appspot.com"
+    messagingSenderId: "812229193086"
   wilddog: # your wilddog config goes here ↓
     siteId:
   # other configs
