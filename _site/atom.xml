@@ -1,4 +1,988 @@
-<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="3.8.5">Jekyll</generator><link href="http://localhost:4000/atom.xml" rel="self" type="application/atom+xml" /><link href="http://localhost:4000/" rel="alternate" type="text/html" /><updated>2020-02-01T22:13:38+08:00</updated><id>http://localhost:4000/atom.xml</id><title type="html">Shutong Chen’s Blog</title><subtitle>CS student in junior year, Fudan University</subtitle><author><name>Shutong Chen</name></author><entry><title type="html">MIT 6.828 JOS 内存管理详解 操作系统实验5</title><link href="http://localhost:4000/lab%20report/2020/02/01/OS5memory/" rel="alternate" type="text/html" title="MIT 6.828 JOS 内存管理详解 操作系统实验5" /><published>2020-02-01T00:00:00+08:00</published><updated>2020-02-01T00:00:00+08:00</updated><id>http://localhost:4000/lab%20report/2020/02/01/OS5memory</id><content type="html" xml:base="http://localhost:4000/lab%20report/2020/02/01/OS5memory/">&lt;p&gt;本文详解JOS操作系统虚拟内存的结构，以及内存管理单元的结构与实现。
+<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="3.8.5">Jekyll</generator><link href="http://localhost:4000/atom.xml" rel="self" type="application/atom+xml" /><link href="http://localhost:4000/" rel="alternate" type="text/html" /><updated>2020-02-03T11:29:00+08:00</updated><id>http://localhost:4000/atom.xml</id><title type="html">Shutong Chen’s Blog</title><subtitle>CS student in junior year, Fudan University</subtitle><author><name>Shutong Chen</name></author><entry><title type="html">MIT 6.828 JOS操作系统实验6-文件系统实现详解</title><link href="http://localhost:4000/lab%20report/2020/02/03/OS6filesystem/" rel="alternate" type="text/html" title="MIT 6.828 JOS操作系统实验6-文件系统实现详解" /><published>2020-02-03T00:00:00+08:00</published><updated>2020-02-03T00:00:00+08:00</updated><id>http://localhost:4000/lab%20report/2020/02/03/OS6filesystem</id><content type="html" xml:base="http://localhost:4000/lab%20report/2020/02/03/OS6filesystem/">&lt;h1 id=&quot;lab6文件系统实现&quot;&gt;Lab6：文件系统实现&lt;/h1&gt;
+
+&lt;p&gt;JOS操作系统提供了一个简单的文件系统，它可以满足基本功能：创建，读取，写入，删除和以分层目录结构来组织文件。但并未提供文件所有权、用户权限的概念，不支持硬链接、符号链接、时间戳或特殊设备文件等，它提供的保护仅能捕获错误。&lt;/p&gt;
+
+&lt;!--more--&gt;
+&lt;h2 id=&quot;磁盘上的文件系统结构&quot;&gt;磁盘上的文件系统结构&lt;/h2&gt;
+
+&lt;p&gt;文件储存在磁盘上，磁盘最小的存储单位为扇区，JOS采用的扇区大小为512字节。为了提高数据交换的效率，与磁盘的一次数据交换以块为单位，不同的操作系统定义不同的块大小，具体而言，更大地块管理的开销越小，但是可能出现的内部碎片越多。JOS采用的块大小为4096bytes，与内存的页大小相同。块和扇区的大小定义在&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;inc/fs.h&lt;/code&gt;和&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;fs/fs.h&lt;/code&gt;中：&lt;/p&gt;
+
+&lt;div class=&quot;language-c highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;cp&quot;&gt;#define BLKSIZE		PGSIZE
+#define BLKBITSIZE	(BLKSIZE * 8)
+&lt;/span&gt;
+&lt;span class=&quot;cp&quot;&gt;#define SECTSIZE	512			// bytes per disk sector
+#define BLKSECTS	(BLKSIZE / SECTSIZE)	// sectors per block
+&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;大多数UNIX文件系统采用索引结构来组织文件的块，为每一个文件分配一个&lt;strong&gt;索引节点（inode）&lt;/strong&gt;，索引节点上保存了文件的重要元数据，包括文件名称，大小，创建者，创建日期，权限，以及文件的数据块存放的物理位置。&lt;strong&gt;inode号码&lt;/strong&gt;而非文件名唯一地标识了系统中的一个文件。&lt;/p&gt;
+
+&lt;p&gt;一般情况下，文件全名与inode号码是意义对应的关系，但UNIX系统允许硬链接，也就是多个文件名指向同一个inode，可以用不同的文件名访问同一个文件，不同的文件名没有依赖关系。当删除一个文件名时，不会影响到其他文件名对该inode的访问，只有在链接数为0的时候，该inode才会被真正释放。由于JOS不实现硬链接或者符号链接，因此目录之间是没办法共享文件的，所以不需要采用inode结构，直接将文件的元数据存放在目录条目中。&lt;/p&gt;
+
+&lt;h3 id=&quot;超级块&quot;&gt;超级块&lt;/h3&gt;
+
+&lt;p&gt;在一个UNIX系统中，一般会存在许多种文件系统，例如ext4，NFS, tmpfs等等，他们有着自己的组织方法，权限设置，文件数据块大小定义等，因此文件的创建、打开、删除等具体操作都是不同的。为了让用户透明地处理文件，操作系统引入了虚拟文件系统，封装不同文件系统的文件操作，为用户提供统一的文件操作接口。用户访问文件系统的过程：&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;https://user-gold-cdn.xitu.io/2019/5/27/16af9c99190c78db?imageView2/0/w/1280/h/960/format/webp/ignore-error/1&quot; alt=&quot;How userspace accesses various types of filesystems&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;这样，不同的文件系统必须提供描述该系统的元数据，例如块大小，总磁盘大小，根目录，块设备驱动程序描述符指针，上次安装文件系统的时间，上次检查文件系统错误的时间等等，这些元数据存放在&lt;strong&gt;超级块&lt;/strong&gt; 中。超级块存放在磁盘的最开始或者结尾，并且为了可靠性会在不同区域中备份。&lt;/p&gt;
+
+&lt;p&gt;JOS的超级块数据结构定义在&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;inc\fs.h&lt;/code&gt;中：&lt;/p&gt;
+
+&lt;div class=&quot;language-c highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;k&quot;&gt;struct&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Super&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+	&lt;span class=&quot;kt&quot;&gt;uint32_t&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;s_magic&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;		&lt;span class=&quot;c1&quot;&gt;// Magic number: FS_MAGIC&lt;/span&gt;
+	&lt;span class=&quot;kt&quot;&gt;uint32_t&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;s_nblocks&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;		&lt;span class=&quot;c1&quot;&gt;// Total number of blocks on disk&lt;/span&gt;
+	&lt;span class=&quot;k&quot;&gt;struct&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;File&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;s_root&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;		&lt;span class=&quot;c1&quot;&gt;// Root directory node&lt;/span&gt;
+&lt;span class=&quot;p&quot;&gt;};&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;包括文件系统魔术字、总共有多少块和根目录节点。&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;https://pdos.csail.mit.edu/6.828/2018/labs/lab5/disk.png&quot; alt=&quot;磁盘布局&quot; /&gt;&lt;/p&gt;
+
+&lt;h3 id=&quot;文件元数据&quot;&gt;文件元数据&lt;/h3&gt;
+
+&lt;p&gt;&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;struct File&lt;/code&gt;描述了文件的元数据：&lt;/p&gt;
+
+&lt;div class=&quot;language-c highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;k&quot;&gt;struct&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;File&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+	&lt;span class=&quot;kt&quot;&gt;char&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;f_name&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;MAXNAMELEN&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;];&lt;/span&gt;	&lt;span class=&quot;c1&quot;&gt;// filename&lt;/span&gt;
+	&lt;span class=&quot;kt&quot;&gt;off_t&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;f_size&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;			&lt;span class=&quot;c1&quot;&gt;// file size in bytes&lt;/span&gt;
+	&lt;span class=&quot;kt&quot;&gt;uint32_t&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;f_type&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;		&lt;span class=&quot;c1&quot;&gt;// file type&lt;/span&gt;
+
+	&lt;span class=&quot;c1&quot;&gt;// Block pointers.&lt;/span&gt;
+	&lt;span class=&quot;c1&quot;&gt;// A block is allocated iff its value is != 0.&lt;/span&gt;
+	&lt;span class=&quot;kt&quot;&gt;uint32_t&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;f_direct&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;NDIRECT&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;];&lt;/span&gt;	&lt;span class=&quot;c1&quot;&gt;// direct blocks&lt;/span&gt;
+	&lt;span class=&quot;kt&quot;&gt;uint32_t&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;f_indirect&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;		&lt;span class=&quot;c1&quot;&gt;// indirect block&lt;/span&gt;
+
+	&lt;span class=&quot;c1&quot;&gt;// Pad out to 256 bytes; must do arithmetic in case we're compiling&lt;/span&gt;
+	&lt;span class=&quot;c1&quot;&gt;// fsformat on a 64-bit machine.&lt;/span&gt;
+	&lt;span class=&quot;kt&quot;&gt;uint8_t&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;f_pad&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;256&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;-&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;MAXNAMELEN&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;-&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;8&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;-&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;4&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;NDIRECT&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;-&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;4&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;];&lt;/span&gt;
+&lt;span class=&quot;p&quot;&gt;}&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;__attribute__&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;((&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;packed&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;));&lt;/span&gt;	&lt;span class=&quot;c1&quot;&gt;// required only on some 64-bit machines&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;f_name: 文件名，&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;MAXNAMELEN&lt;/code&gt;定义为128字节。&lt;/li&gt;
+  &lt;li&gt;f_size: 以字节为单位的文件大小&lt;/li&gt;
+  &lt;li&gt;f_type： 文件类型（用来区分是普通文件还是目录）&lt;/li&gt;
+  &lt;li&gt;f_direct:  直接索引块，NDIRECT被定义为10。&lt;/li&gt;
+  &lt;li&gt;f_indirect: 间接索引块，只有1块。&lt;/li&gt;
+  &lt;li&gt;f_pad:  这是元数据结构的padding，填充使得&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;File&lt;/code&gt;结构的大小为256字节。&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;元数据存储在磁盘上的目录条目中。文件数据块使用索引来组织，每一条索引存放着对应文件数据块的物理地址（块号）。直接索引块有10个，意味着大小不超过10 *4096=40KB的文件可以直接映射。间接索引块只有一个，可以存放4096/4 = 1024个额外的直接索引块，因此可以提供1024*4096 =4MB的空间。&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;文件系统允许的文件大小为4MB+40KB，1034块&lt;/strong&gt;。&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;https://pdos.csail.mit.edu/6.828/2018/labs/lab5/file.png&quot; alt=&quot;档案结构&quot; /&gt;&lt;/p&gt;
+
+&lt;h3 id=&quot;目录文件&quot;&gt;目录文件&lt;/h3&gt;
+
+&lt;p&gt;目录实际上也是一个文件，只是其中存放的是每个文件的元数据（&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;File&lt;/code&gt;结构体），描述其中的文件和子目录。&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;根目录的元数据保存在超级块中&lt;/strong&gt;。根目录文件存放了一系列子目录和文件的&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;File&lt;/code&gt;元数据，虚拟文件系统可以根据超级块找到根目录的元数据，从而访问到根目录文件的每一块，进而再通过元数据找到具体文件。&lt;/p&gt;
+
+&lt;h3 id=&quot;磁盘空间管理&quot;&gt;磁盘空间管理&lt;/h3&gt;
+
+&lt;p&gt;如上面的结构图所示，JOS用bitmap来管理磁盘的空闲块。在创建文件或文件内容需要扩展时，JOS根据bitmap找到空闲的磁盘块并分配给它；当文件空间释放时，文件系统将bitmap中对应的块置为1，表示该块已经空闲。Bitmap的管理相对于空闲块链表来说更加高效，但是也会占据较大空间。因为文件系统最多只能管理3GB的磁盘，则最多有786，432块，需要98，304字节的bitmap，即24个bitmap块。&lt;/p&gt;
+
+&lt;h3 id=&quot;访问磁盘&quot;&gt;访问磁盘&lt;/h3&gt;
+
+&lt;p&gt;文件系统的实现需要访问磁盘。一般的UNIX系统中，因为有许多异质的IO设备，因此要将磁盘驱动程序安装为内核的一部分，并提供系统调用使得文件系统可以访问磁盘。在JOS中，为了方便，直接将磁盘驱动程序实现在文件系统的用户级环境中，使得文件系统可以直接访问磁盘。&lt;/p&gt;
+
+&lt;p&gt;JOS中程序与磁盘数据交换的方式是轮询， 即基于编程IO的磁盘访问。&lt;/p&gt;
+
+&lt;p&gt;本次实验中，我们要实现与探究的问题有：&lt;/p&gt;
+
+&lt;ol&gt;
+  &lt;li&gt;文件系统中，文件逻辑块是如何映射到物理块上的&lt;/li&gt;
+  &lt;li&gt;文件创建或扩展时，如何分配磁盘块&lt;/li&gt;
+  &lt;li&gt;需要访问文件时，如何将文件数据从磁盘上读取到内存缓冲区中&lt;/li&gt;
+  &lt;li&gt;如何把内存中的文件数据写回到磁盘&lt;/li&gt;
+  &lt;li&gt;如何为用户提供读、写、创建、删除的接口&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;h2 id=&quot;todo1&quot;&gt;TODO1:&lt;/h2&gt;
+
+&lt;blockquote&gt;
+  &lt;p&gt;i386_init通过将ENV_TYPE_FS类型传递给环境创建函数env_create来标识文件系统环境。在env.c中修改env_create，使其授予文件系统环境I/O权限，但不要将该权限授予其他环境。&lt;/p&gt;
+&lt;/blockquote&gt;
+
+&lt;p&gt;JOS中，环境实际上与用户进程类似， 一个环境包括环境的状态（RUNNING \RUNNABLE等），环境的地址空间，环境的父级id，中断帧等，与进程相似。可以通过系统调用fork来创建用户环境，当发生中断时，保存用户环境的运行状态到中断帧中，然后进入内核处理中断。环境描述还包括环境的类型，只有两种——ENV_TYPE_USER和ENV_TYPE_FS，前者为普通的用户进程，后者为文件系统环境。&lt;/p&gt;
+
+&lt;p&gt;系统开启时，在&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;init.c&lt;/code&gt;的&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;i386_init()&lt;/code&gt;中会创建文件系统进程：&lt;/p&gt;
+
+&lt;div class=&quot;language-c highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;	&lt;span class=&quot;p&quot;&gt;...&lt;/span&gt;
+	&lt;span class=&quot;n&quot;&gt;boot_aps&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;();&lt;/span&gt;		&lt;span class=&quot;c1&quot;&gt;//将初始化代码拷贝到MPENTRY_PADDR处，然后依次启动所有AP&lt;/span&gt;
+
+	&lt;span class=&quot;c1&quot;&gt;// Start fs.&lt;/span&gt;
+	&lt;span class=&quot;n&quot;&gt;ENV_CREATE&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;fs_fs&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;ENV_TYPE_FS&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;x86处理器使用EFLAGS寄存器中的IOPL位来确定是否允许保护模式代码执行特殊的设备I / O指令，例如IN和OUT指令。JOS的磁盘寄存器位于x86的IO空间中，因此我们需要赋予文件系统环境IO权限，但不允许其他任何环境，包括内核访问磁盘。&lt;/p&gt;
+
+&lt;p&gt;一个进程只能使用&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;POPF&lt;/code&gt;指令来更改IOPL，但是这条指令的执行也需要内核级特权，文件系统环境并不具有内核级特权。所以，需要在运行于内核模式的&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;env_create&lt;/code&gt;中，判断环境类型是否为文件系统，然后手动修改该环境下的EFLAGS寄存器。代码为：&lt;/p&gt;
+
+&lt;div class=&quot;language-c highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;kt&quot;&gt;void&lt;/span&gt;
+&lt;span class=&quot;nf&quot;&gt;env_create&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;uint8_t&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;binary&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;enum&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;EnvType&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;type&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+&lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+	&lt;span class=&quot;c1&quot;&gt;// LAB 3: Your code here.&lt;/span&gt;
+	&lt;span class=&quot;k&quot;&gt;struct&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Env&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;e&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+	&lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;r&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+	&lt;span class=&quot;k&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;((&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;r&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;env_alloc&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;amp;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;e&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;!=&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;))&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+		&lt;span class=&quot;n&quot;&gt;panic&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;create env failed&lt;/span&gt;&lt;span class=&quot;se&quot;&gt;\n&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+	&lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
+
+	&lt;span class=&quot;c1&quot;&gt;// If this is the file server (type == ENV_TYPE_FS) give it I/O privileges.&lt;/span&gt;
+	&lt;span class=&quot;c1&quot;&gt;// LAB 5: Your code here.&lt;/span&gt;
+	&lt;span class=&quot;k&quot;&gt;if&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;type&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;==&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;ENV_TYPE_FS&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+		&lt;span class=&quot;n&quot;&gt;e&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;-&amp;gt;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;env_tf&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;tf_eflags&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;|=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;FL_IOPL_MASK&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+
+	&lt;span class=&quot;n&quot;&gt;load_icode&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;e&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;binary&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+	&lt;span class=&quot;n&quot;&gt;e&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;-&amp;gt;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;env_type&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;type&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+&lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
+
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;其中，FL_IOPL_MASK在&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;mmu.h&lt;/code&gt;中定义。eflags寄存器中的第12和13位为IO特权级别位（IOPL），从0-3分别对应4种模式：内核、驱动程序、驱动程序、应用程序。当前的进程只有当权限位&amp;lt;=IOPL时，才可以获得访问IO的权限， 否则就会引发保护异常。&lt;/p&gt;
+
+&lt;p&gt;&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;e-&amp;gt;env_tf.tf_flags|=FL_IOPL_MASK&lt;/code&gt;将EFLAGS寄存器置为0x3000，即IOPL=3，也就是该进程的用户模式可访问IO, 于是文件系统便获得IO权限，而对于其他用户环境，eflags中的IOPL位仍为0. &lt;strong&gt;因为每一个进程都有自己独立的标志寄存器，所以用户环境与文件系统环境具有不同的IOPL。&lt;/strong&gt;&lt;/p&gt;
+
+&lt;blockquote&gt;
+  &lt;p&gt;Env 数据结构为环境描述符，类似于PCB，在&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;inc\env.h&lt;/code&gt;中定义：&lt;/p&gt;
+
+  &lt;div class=&quot;language-c highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;k&quot;&gt;struct&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Env&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+	&lt;span class=&quot;k&quot;&gt;struct&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Trapframe&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;env_tf&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;	&lt;span class=&quot;c1&quot;&gt;// Saved registers&lt;/span&gt;
+	&lt;span class=&quot;k&quot;&gt;struct&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Env&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;env_link&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;		&lt;span class=&quot;c1&quot;&gt;// Next free Env&lt;/span&gt;
+	&lt;span class=&quot;n&quot;&gt;envid_t&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;env_id&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;			&lt;span class=&quot;c1&quot;&gt;// Unique environment identifier&lt;/span&gt;
+	&lt;span class=&quot;n&quot;&gt;envid_t&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;env_parent_id&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;		&lt;span class=&quot;c1&quot;&gt;// env_id of this env's parent&lt;/span&gt;
+	&lt;span class=&quot;k&quot;&gt;enum&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;EnvType&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;env_type&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;		&lt;span class=&quot;c1&quot;&gt;// Indicates special system environments&lt;/span&gt;
+	&lt;span class=&quot;kt&quot;&gt;unsigned&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;env_status&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;		&lt;span class=&quot;c1&quot;&gt;// Status of the environment&lt;/span&gt;
+	&lt;span class=&quot;kt&quot;&gt;uint32_t&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;env_runs&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;		&lt;span class=&quot;c1&quot;&gt;// Number of times environment has run&lt;/span&gt;
+	&lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;env_cpunum&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;			&lt;span class=&quot;c1&quot;&gt;// The CPU that the env is running on&lt;/span&gt;
+
+	&lt;span class=&quot;c1&quot;&gt;// Address space&lt;/span&gt;
+	&lt;span class=&quot;n&quot;&gt;pde_t&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;env_pgdir&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;		&lt;span class=&quot;c1&quot;&gt;// Kernel virtual address of page dir&lt;/span&gt;
+
+	&lt;span class=&quot;c1&quot;&gt;// Exception handling&lt;/span&gt;
+	&lt;span class=&quot;kt&quot;&gt;void&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;env_pgfault_upcall&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;	&lt;span class=&quot;c1&quot;&gt;// Page fault upcall entry point&lt;/span&gt;
+
+	&lt;span class=&quot;c1&quot;&gt;// Lab 4 IPC&lt;/span&gt;
+	&lt;span class=&quot;n&quot;&gt;bool&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;env_ipc_recving&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;		&lt;span class=&quot;c1&quot;&gt;// Env is blocked receiving&lt;/span&gt;
+	&lt;span class=&quot;kt&quot;&gt;void&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;env_ipc_dstva&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;		&lt;span class=&quot;c1&quot;&gt;// VA at which to map received page&lt;/span&gt;
+	&lt;span class=&quot;kt&quot;&gt;uint32_t&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;env_ipc_value&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;		&lt;span class=&quot;c1&quot;&gt;// Data value sent to us&lt;/span&gt;
+	&lt;span class=&quot;n&quot;&gt;envid_t&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;env_ipc_from&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;		&lt;span class=&quot;c1&quot;&gt;// envid of the sender&lt;/span&gt;
+	&lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;env_ipc_perm&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;		&lt;span class=&quot;c1&quot;&gt;// Perm of page mapping received&lt;/span&gt;
+&lt;span class=&quot;p&quot;&gt;};&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;  &lt;/div&gt;
+
+  &lt;p&gt;其中 &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;env_tf&lt;/code&gt;为中断帧，中断帧数据结构&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;Trapframe&lt;/code&gt;与之前的实验类似，&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;tf_eflags&lt;/code&gt;为进程的EFLAGS寄存器。&lt;/p&gt;
+
+&lt;/blockquote&gt;
+
+&lt;p&gt;###问题：&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;在环境切换的时候是否需要其他操作来确保IOPL正确设置和还原？&lt;/strong&gt;&lt;/p&gt;
+
+&lt;p&gt;不需要。因为在环境切换的时候，操作系统会保存旧的中断帧在内核栈上，其中就包括了EFLAGS寄存器。在环境切换回来的时候，会从内核栈上加载中断帧，恢复原来的EFLAGS寄存器值。&lt;/p&gt;
+
+&lt;h3 id=&quot;检查&quot;&gt;检查&lt;/h3&gt;
+
+&lt;p&gt;运行&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;./grade-lab5&lt;/code&gt;进行检查：&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;C:\Users\CST\AppData\Roaming\Typora\typora-user-images\image-20191212212137127.png&quot; alt=&quot;image-20191212212137127&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;fs i/o&lt;/code&gt;结果为OK, 说明文件系统已有IO权限。&lt;/p&gt;
+
+&lt;hr /&gt;
+
+&lt;h2 id=&quot;todo2&quot;&gt;TODO2:&lt;/h2&gt;
+
+&lt;blockquote&gt;
+  &lt;p&gt;​    在fs / bc.c中实现bc_pgfault和flush_block函数。 bc_pgfault是一个页面错误处理程序，bc_pgfault的工作是从磁盘加载页面，flush_block函数应将一个块写出到磁盘。&lt;/p&gt;
+&lt;/blockquote&gt;
+
+&lt;p&gt;为了解决磁盘与CPU处理数据速度的不同与数据大小的不同，通常要在两者之间加入缓冲区。缓冲区实际上是内存上的一块特定区域。JOS的缓冲区只有一个块， 代码在&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;fs\bc.c&lt;/code&gt;中。&lt;/p&gt;
+
+&lt;h3 id=&quot;bc_pgfault&quot;&gt;bc_pgfault()&lt;/h3&gt;
+
+&lt;p&gt;文件系统在JOS中本质上是一个进程，它如何提供其他进程访问文件的接口呢？&lt;/p&gt;
+
+&lt;p&gt;内核将磁盘的物理地址映射到文件系统进程的高虚拟地址空间。在&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;fs.h&lt;/code&gt;中，磁盘映射的虚拟地址和磁盘大小的定义是：&lt;/p&gt;
+
+&lt;div class=&quot;language-c highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;cm&quot;&gt;/* Disk block n, when in memory, is mapped into the file system
+ * server's address space at DISKMAP + (n*BLKSIZE). */&lt;/span&gt;
+&lt;span class=&quot;cp&quot;&gt;#define DISKMAP		0x10000000
+&lt;/span&gt;
+&lt;span class=&quot;cm&quot;&gt;/* Maximum disk size we can handle (3GB) */&lt;/span&gt;
+&lt;span class=&quot;cp&quot;&gt;#define DISKSIZE	0xC0000000
+&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;意味着该文件系统只能处理最多3GB的磁盘。磁盘地址被映射到文件系统进程的高地址3GB区域，从0x10000000开始。这样，磁盘地址映射到文件系统虚拟地址，而虚拟地址又在被访问时映射到内存的物理地址，当其他进程向文件系统请求读取文件时，文件系统访问虚拟地址空间来读取相应的块。&lt;/p&gt;
+
+&lt;p&gt;对于文件系统，磁盘块的读取和普通进程访问代码和数据时按需调页的策略类似，是按需加载的。只有当某个磁盘块被需要时，才要将其加载进内存。当文件系统进程访问某个虚拟地址时，如果对应的磁盘块还不在内存中，就会发生缺页故障，这时应该将虚拟地址对应的磁盘块读入内存，这与普通用户的页错误处理不同，需要自定义页错误处理程序。&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;bc_pgfault&lt;/code&gt;函数将磁盘块读取到对应的内存，才可以重新执行该访问。&lt;/p&gt;
+
+&lt;blockquote&gt;
+  &lt;p&gt;正常情况下，用户环境运行在JOS分配给用户的正常栈上。但当用户模式下发生页错误时，JOS内核将从正常用户栈切换到用户异常栈，来运行用户级页面错误处理程序。在异常栈上，有&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;UTrapframe&lt;/code&gt;结构体，为&lt;strong&gt;异常中断帧&lt;/strong&gt;，它保存了引起页错误的虚拟地址。&lt;/p&gt;
+
+  &lt;p&gt;处理用户态页面异常的过程是：&lt;/p&gt;
+
+  &lt;ol&gt;
+    &lt;li&gt;发生异常之前，用户已经向内核注册自定义的页面处理程序在env_pgfault_upcall中。&lt;/li&gt;
+    &lt;li&gt;用户态发生页错误，陷入内核态，保存正常的中断帧Trapframe，切换到内核栈，进入trap（）&lt;/li&gt;
+    &lt;li&gt;根据中断号发现是缺页故障，调用&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;page_fault_handler&lt;/code&gt;进行处理&lt;/li&gt;
+    &lt;li&gt;检测trapframe上保存的cs寄存器，发现是用户态&lt;/li&gt;
+    &lt;li&gt;判断是否有用户自定义页面异常处理程序，若没有则销毁进程。&lt;/li&gt;
+    &lt;li&gt;如果有，压入Utrapframe，并设置tf-&amp;gt;tf_eip即下一条指令为用户自定义的缺页处理程序，返回用户态&lt;/li&gt;
+    &lt;li&gt;用户态会从自定义处理程序开始执行。&lt;/li&gt;
+  &lt;/ol&gt;
+
+  &lt;p&gt;&lt;strong&gt;文件系统进程自定义了它的缺页处理程序为bc_pgfault&lt;/strong&gt;&lt;/p&gt;
+
+&lt;/blockquote&gt;
+
+&lt;p&gt;&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;bc_pgfault&lt;/code&gt;首先对访问的虚拟地址进行了合法性检查：&lt;/p&gt;
+
+&lt;div class=&quot;language-c highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;k&quot;&gt;static&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;void&lt;/span&gt;
+&lt;span class=&quot;nf&quot;&gt;bc_pgfault&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;struct&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;UTrapframe&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;utf&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+&lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+	&lt;span class=&quot;kt&quot;&gt;void&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;addr&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;void&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;utf&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;-&amp;gt;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;utf_fault_va&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+	&lt;span class=&quot;kt&quot;&gt;uint32_t&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;blockno&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;((&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;uint32_t&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;addr&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;-&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;DISKMAP&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;/&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;BLKSIZE&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+	&lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;r&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+
+	&lt;span class=&quot;c1&quot;&gt;// Check that the fault was within the block cache region&lt;/span&gt;
+	&lt;span class=&quot;k&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;addr&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;lt;&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;void&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;DISKMAP&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;||&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;addr&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;gt;=&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;void&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;DISKMAP&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;+&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;DISKSIZE&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;))&lt;/span&gt;
+		&lt;span class=&quot;n&quot;&gt;panic&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;page fault in FS: eip %08x, va %08x, err %04x&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt;
+		      &lt;span class=&quot;n&quot;&gt;utf&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;-&amp;gt;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;utf_eip&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;addr&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;utf&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;-&amp;gt;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;utf_err&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+
+	&lt;span class=&quot;c1&quot;&gt;// Sanity check the block number.&lt;/span&gt;
+	&lt;span class=&quot;k&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;super&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;amp;&amp;amp;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;blockno&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;super&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;-&amp;gt;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;s_nblocks&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+		&lt;span class=&quot;n&quot;&gt;panic&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;reading non-existent block %08x&lt;/span&gt;&lt;span class=&quot;se&quot;&gt;\n&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;blockno&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;虚拟地址必须在磁盘映射的虚拟地址范围之内，并且由于文件系统所占有的磁盘空间可能比3GB要小，所以要检查对应的磁盘块号是否在文件系统的范围内（&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;blockno &amp;lt; super-&amp;gt;s_nblocks&lt;/code&gt;).&lt;/p&gt;
+
+&lt;p&gt;接下来，由于&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;addr&lt;/code&gt;不一定与页大小对齐，所以要先将它与&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;PGSIZE&lt;/code&gt;对齐：&lt;/p&gt;
+
+&lt;div class=&quot;language-c highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;n&quot;&gt;addr&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;ROUNDDOWN&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;addr&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;PGSIZE&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;然后将磁盘块读入内存，则首先要在内存中分配一个页。JOS的&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;syscall.c&lt;/code&gt;中实现了分配内存页的系统调用&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;sys_page_alloc&lt;/code&gt;, 它的接口是：&lt;/p&gt;
+&lt;div class=&quot;language-c highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;k&quot;&gt;static&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt;
+&lt;span class=&quot;n&quot;&gt;sys_page_alloc&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;envid_t&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;envid&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;void&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;va&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;perm&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;它为id为envid的环境在内存中分配一个页，并将页首地址映射到虚拟地址va, 设置这个页的权限为perm。（与上次实验一样，PTE_U表示用户可读，PTE_W表示可写，PTE_P表示存在内存中）。&lt;/p&gt;
+
+&lt;p&gt;我们知道&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;init.c&lt;/code&gt;中，文件系统环境是第一个被create出来的进程：&lt;/p&gt;
+
+&lt;div class=&quot;language-c highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;	&lt;span class=&quot;c1&quot;&gt;// Starting non-boot CPUs&lt;/span&gt;
+	&lt;span class=&quot;n&quot;&gt;boot_aps&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;();&lt;/span&gt;		&lt;span class=&quot;c1&quot;&gt;//将初始化代码拷贝到MPENTRY_PADDR处，然后依次启动所有AP&lt;/span&gt;
+
+	&lt;span class=&quot;c1&quot;&gt;// Start fs.&lt;/span&gt;
+	&lt;span class=&quot;n&quot;&gt;ENV_CREATE&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;fs_fs&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;ENV_TYPE_FS&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+
+&lt;span class=&quot;cp&quot;&gt;#if defined(TEST)
+&lt;/span&gt;	&lt;span class=&quot;c1&quot;&gt;// Don't touch -- used by grading script!&lt;/span&gt;
+	&lt;span class=&quot;n&quot;&gt;ENV_CREATE&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;TEST&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;ENV_TYPE_USER&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;它的envid为0.&lt;/p&gt;
+
+&lt;p&gt;所以可以用：&lt;/p&gt;
+
+&lt;div class=&quot;language-c highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;n&quot;&gt;sys_page_alloc&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;addr&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;PTE_W&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;|&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;PTE_U&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;|&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;PTE_P&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;来分配页。文件系统对这个页的权限当然是可读可写。&lt;/p&gt;
+
+&lt;p&gt;如果内存大小不够的话，&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;sys_page_alloc&lt;/code&gt;会返回E_NO_MEM错误，否则返回0. 这里加以判断，如果内存不足抛出panic。&lt;/p&gt;
+
+&lt;p&gt;&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;ide.c&lt;/code&gt;磁盘驱动程序提供了读取磁盘的接口：&lt;/p&gt;
+
+&lt;div class=&quot;language-c highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt;
+&lt;span class=&quot;nf&quot;&gt;ide_read&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;uint32_t&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;secno&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;void&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;dst&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;size_t&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;nsecs&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+&lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+	&lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;r&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+
+	&lt;span class=&quot;n&quot;&gt;assert&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;nsecs&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;lt;=&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;256&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+
+	&lt;span class=&quot;n&quot;&gt;ide_wait_ready&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+
+	&lt;span class=&quot;n&quot;&gt;outb&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;mh&quot;&gt;0x1F2&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;nsecs&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+	&lt;span class=&quot;n&quot;&gt;outb&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;mh&quot;&gt;0x1F3&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;secno&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;amp;&lt;/span&gt; &lt;span class=&quot;mh&quot;&gt;0xFF&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+	&lt;span class=&quot;n&quot;&gt;outb&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;mh&quot;&gt;0x1F4&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;secno&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;gt;&amp;gt;&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;8&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;amp;&lt;/span&gt; &lt;span class=&quot;mh&quot;&gt;0xFF&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+	&lt;span class=&quot;n&quot;&gt;outb&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;mh&quot;&gt;0x1F5&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;secno&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;gt;&amp;gt;&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;16&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;amp;&lt;/span&gt; &lt;span class=&quot;mh&quot;&gt;0xFF&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+	&lt;span class=&quot;n&quot;&gt;outb&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;mh&quot;&gt;0x1F6&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;mh&quot;&gt;0xE0&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;|&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;((&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;diskno&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;amp;&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;1&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;lt;&amp;lt;&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;4&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;|&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;((&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;secno&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;gt;&amp;gt;&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;24&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;amp;&lt;/span&gt;&lt;span class=&quot;mh&quot;&gt;0x0F&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;));&lt;/span&gt;
+	&lt;span class=&quot;n&quot;&gt;outb&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;mh&quot;&gt;0x1F7&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;mh&quot;&gt;0x20&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;	&lt;span class=&quot;c1&quot;&gt;// CMD 0x20 means read sector&lt;/span&gt;
+
+	&lt;span class=&quot;k&quot;&gt;for&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;nsecs&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;gt;&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;nsecs&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;--&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;dst&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;+=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;SECTSIZE&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+		&lt;span class=&quot;k&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;((&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;r&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;ide_wait_ready&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;1&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;))&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;lt;&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+			&lt;span class=&quot;k&quot;&gt;return&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;r&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+		&lt;span class=&quot;n&quot;&gt;insl&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;mh&quot;&gt;0x1F0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;dst&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;SECTSIZE&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;/&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;4&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+	&lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
+
+	&lt;span class=&quot;k&quot;&gt;return&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+&lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;磁盘驱动器中读取磁盘的单位是一个扇区。提供的接口中，&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;secno&lt;/code&gt;表示开始扇区号，&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;dst&lt;/code&gt;表示数据输出的地址，&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;nsecs&lt;/code&gt;表示读取扇区数目。&lt;/p&gt;
+
+&lt;p&gt;&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;BLKSECTS&lt;/code&gt;定义在&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;fs.h&lt;/code&gt;中，为&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;BLKSIZE/SECSIZE&lt;/code&gt;,表示一个块包含的扇区数，则这里&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;secno&lt;/code&gt;应该为 &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;blockno * BLKSECTS&lt;/code&gt;, 目的地址为&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;addr&lt;/code&gt;， 读取扇区数为&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;BLKSECTS&lt;/code&gt;.&lt;/p&gt;
+
+&lt;p&gt;&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;bc_pgfault()&lt;/code&gt;的实现：&lt;/p&gt;
+
+&lt;div class=&quot;language-c highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;k&quot;&gt;static&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;void&lt;/span&gt;
+&lt;span class=&quot;nf&quot;&gt;bc_pgfault&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;struct&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;UTrapframe&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;utf&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+&lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+	&lt;span class=&quot;kt&quot;&gt;void&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;addr&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;void&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;utf&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;-&amp;gt;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;utf_fault_va&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+	&lt;span class=&quot;kt&quot;&gt;uint32_t&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;blockno&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;((&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;uint32_t&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;addr&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;-&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;DISKMAP&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;/&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;BLKSIZE&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+	&lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;r&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+
+	&lt;span class=&quot;c1&quot;&gt;// Check that the fault was within the block cache region&lt;/span&gt;
+	&lt;span class=&quot;k&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;addr&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;lt;&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;void&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;DISKMAP&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;||&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;addr&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;gt;=&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;void&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;DISKMAP&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;+&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;DISKSIZE&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;))&lt;/span&gt;
+		&lt;span class=&quot;n&quot;&gt;panic&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;page fault in FS: eip %08x, va %08x, err %04x&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt;
+		      &lt;span class=&quot;n&quot;&gt;utf&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;-&amp;gt;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;utf_eip&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;addr&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;utf&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;-&amp;gt;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;utf_err&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+
+	&lt;span class=&quot;c1&quot;&gt;// Sanity check the block number.&lt;/span&gt;
+	&lt;span class=&quot;k&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;super&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;amp;&amp;amp;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;blockno&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;super&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;-&amp;gt;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;s_nblocks&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+		&lt;span class=&quot;n&quot;&gt;panic&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;reading non-existent block %08x&lt;/span&gt;&lt;span class=&quot;se&quot;&gt;\n&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;blockno&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+
+	&lt;span class=&quot;c1&quot;&gt;// Allocate a page in the disk map region, read the contents&lt;/span&gt;
+	&lt;span class=&quot;c1&quot;&gt;// of the block from the disk into that page.&lt;/span&gt;
+	&lt;span class=&quot;c1&quot;&gt;// Hint: first round addr to page boundary. fs/ide.c has code to read&lt;/span&gt;
+	&lt;span class=&quot;c1&quot;&gt;// the disk.&lt;/span&gt;
+	&lt;span class=&quot;c1&quot;&gt;//&lt;/span&gt;
+	&lt;span class=&quot;c1&quot;&gt;// LAB 5: you code here:&lt;/span&gt;
+	&lt;span class=&quot;n&quot;&gt;addr&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;ROUNDDOWN&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;addr&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;PGSIZE&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+    	&lt;span class=&quot;k&quot;&gt;if&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;((&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;r&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;sys_page_alloc&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;addr&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;PTE_W&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;|&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;PTE_U&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;|&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;PTE_P&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;))&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;lt;&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+		&lt;span class=&quot;n&quot;&gt;panic&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;failed to alloc page: %e&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;r&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+    	&lt;span class=&quot;k&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;((&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;r&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;ide_read&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;blockno&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;BLKSECTS&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;addr&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;BLKSECTS&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;))&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;lt;&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;){&lt;/span&gt;
+        	&lt;span class=&quot;n&quot;&gt;panic&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;in bc_pgfault,ide_read: %e&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;r&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+    	&lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
+
+
+	&lt;span class=&quot;c1&quot;&gt;// Clear the dirty bit for the disk block page since we just read the&lt;/span&gt;
+	&lt;span class=&quot;c1&quot;&gt;// block from disk&lt;/span&gt;
+	&lt;span class=&quot;k&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;((&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;r&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;sys_page_map&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;addr&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;addr&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;uvpt&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;PGNUM&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;addr&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)]&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;amp;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;PTE_SYSCALL&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;))&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;lt;&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+		&lt;span class=&quot;n&quot;&gt;panic&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;in bc_pgfault, sys_page_map: %e&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;r&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+
+	&lt;span class=&quot;c1&quot;&gt;// Check that the block we read was allocated. (exercise for&lt;/span&gt;
+	&lt;span class=&quot;c1&quot;&gt;// the reader: why do we do this *after* reading the block&lt;/span&gt;
+	&lt;span class=&quot;c1&quot;&gt;// in?)&lt;/span&gt;
+	&lt;span class=&quot;k&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;bitmap&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;amp;&amp;amp;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;block_is_free&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;blockno&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;))&lt;/span&gt;
+		&lt;span class=&quot;n&quot;&gt;panic&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;reading free block %08x&lt;/span&gt;&lt;span class=&quot;se&quot;&gt;\n&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;blockno&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+&lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
+
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;h3 id=&quot;flush_block&quot;&gt;flush_block&lt;/h3&gt;
+
+&lt;p&gt;flush_block函数必要时将内存中的一个磁盘块的数据写回磁盘, 然后将该块的脏位置为0. 这里的必要，指的是当该块在内存中并且脏位为1的时候。假如数据没有发生改变，那么就没必要写磁盘。形参&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;addr&lt;/code&gt;是文件系统进程中的一个虚拟地址，用&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;blockno=((uint32_t)addr - DISKMAP) / BLKSIZE;&lt;/code&gt;将它转为磁盘块号。同样，&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;addr&lt;/code&gt;需要对齐到页大小。&lt;/p&gt;
+
+&lt;p&gt;根据提示，首先用&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;va_is_mapped&lt;/code&gt;判断该虚拟地址是否绑定到内存物理地址上，如果没有，说明该块不在内存中，不需要写回。用&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;va_is_dirty&lt;/code&gt;判断该虚拟地址对应页是否被修改过，如果没有也直接返回。&lt;/p&gt;
+
+&lt;p&gt;否则用磁盘驱动器的&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;ide_write(uint32_t secno, const void *src, size_t nsecs)&lt;/code&gt;接口来写回块。同样以扇区为单位操作，src是数据块的源虚拟地址。&lt;/p&gt;
+
+&lt;p&gt;写回之后，把内存上该块的脏位（PTE_D）置为0. 可以用&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;sys_page_map&lt;/code&gt;来实现。sys_page_map的接口是：&lt;/p&gt;
+
+&lt;div class=&quot;language-c highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;k&quot;&gt;static&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt;
+&lt;span class=&quot;n&quot;&gt;sys_page_map&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;envid_t&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;srcenvid&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;void&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;srcva&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt;
+	     &lt;span class=&quot;n&quot;&gt;envid_t&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;dstenvid&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;void&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;dstva&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;perm&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;它将进程 srcenvid的虚拟地址srcva映射到进程dstenvid的dstva处，并将权限设置为perm。&lt;/p&gt;
+
+&lt;p&gt;可以通过将源和目的虚拟地址都设置为文件系统的虚拟地址&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;addr&lt;/code&gt;, 并将perm设置为 uvpt[PGNUM(addr)]&amp;amp; PTE_SYSCALL来把PTE_D清空, 并保留addr页面原来的权限设置。&lt;/p&gt;
+
+&lt;p&gt;PTE_SYSCALL是只有用户程序进行系统调用时才会设置的，它的值是：&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;#define PTE_SYSCALL	(PTE_AVAIL | PTE_P | PTE_W | PTE_U)&lt;/code&gt;, PTE_AVAIL表示可为用户使用。&lt;/p&gt;
+
+&lt;p&gt;加上错误处理，flush_block()实现便完成：&lt;/p&gt;
+
+&lt;div class=&quot;language-c highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;c1&quot;&gt;// Flush the contents of the block containing VA out to disk if&lt;/span&gt;
+&lt;span class=&quot;c1&quot;&gt;// necessary, then clear the PTE_D bit using sys_page_map.&lt;/span&gt;
+&lt;span class=&quot;c1&quot;&gt;// If the block is not in the block cache or is not dirty, does&lt;/span&gt;
+&lt;span class=&quot;c1&quot;&gt;// nothing.&lt;/span&gt;
+&lt;span class=&quot;c1&quot;&gt;// Hint: Use va_is_mapped, va_is_dirty, and ide_write.&lt;/span&gt;
+&lt;span class=&quot;c1&quot;&gt;// Hint: Use the PTE_SYSCALL constant when calling sys_page_map.&lt;/span&gt;
+&lt;span class=&quot;c1&quot;&gt;// Hint: Don't forget to round addr down.&lt;/span&gt;
+&lt;span class=&quot;kt&quot;&gt;void&lt;/span&gt;
+&lt;span class=&quot;nf&quot;&gt;flush_block&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;void&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;addr&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+&lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+	&lt;span class=&quot;kt&quot;&gt;uint32_t&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;blockno&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;((&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;uint32_t&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;addr&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;-&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;DISKMAP&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;/&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;BLKSIZE&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+
+	&lt;span class=&quot;k&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;addr&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;lt;&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;void&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;DISKMAP&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;||&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;addr&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;gt;=&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;void&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;DISKMAP&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;+&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;DISKSIZE&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;))&lt;/span&gt;
+		&lt;span class=&quot;n&quot;&gt;panic&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;flush_block of bad va %08x&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;addr&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+
+	&lt;span class=&quot;c1&quot;&gt;// LAB 5: Your code here.&lt;/span&gt;
+    &lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;r&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+    &lt;span class=&quot;n&quot;&gt;addr&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;ROUNDDOWN&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;addr&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;PGSIZE&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+    &lt;span class=&quot;k&quot;&gt;if&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;!&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;va_is_mapped&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;addr&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;||&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;!&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;va_is_dirty&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;addr&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;))&lt;/span&gt;
+        &lt;span class=&quot;k&quot;&gt;return&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+    &lt;span class=&quot;k&quot;&gt;if&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;((&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;r&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;ide_write&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;blockno&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;BLKSECTS&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;addr&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;BLKSECTS&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;))&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;lt;&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+        &lt;span class=&quot;n&quot;&gt;panic&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;in flush_block, ide_write(): %e&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;r&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+    &lt;span class=&quot;k&quot;&gt;if&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;((&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;r&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;sys_page_map&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;addr&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;addr&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;uvpt&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;PGNUM&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;addr&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)]&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;amp;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;PTE_SYSCALL&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;))&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;lt;&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+        &lt;span class=&quot;n&quot;&gt;panic&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;in flush_block, sys_page_map: %e&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;r&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+
+&lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;  
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;h3 id=&quot;检查-1&quot;&gt;检查&lt;/h3&gt;
+
+&lt;p&gt;&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;make grade&lt;/code&gt;后：&lt;/p&gt;
+
+&lt;p&gt;&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;check_bc&lt;/code&gt;,&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;check_super&lt;/code&gt;和&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;check_bitmap&lt;/code&gt;OK，表示两个函数实现正确。&lt;/p&gt;
+
+&lt;hr /&gt;
+
+&lt;h2 id=&quot;todo3&quot;&gt;TODO3:&lt;/h2&gt;
+
+&lt;blockquote&gt;
+  &lt;p&gt;使用free_block作为模板在fs / fs.c中实现alloc_block，后者应在bitmap中找到可用的磁盘块，将其标记为已使用，然后返回该块的编号。 分配该块时，应立即使用flush_block将更改后的bitmap块刷新到磁盘，以帮助文件系统保持一致。&lt;/p&gt;
+&lt;/blockquote&gt;
+
+&lt;p&gt;alloc_block的过程是：&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;从第一个块号开始，调用&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;block_is_free&lt;/code&gt;判断它是否空闲，找到第一个空闲的块。&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;block_is_free&lt;/code&gt;就是从判断&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;bitmap&lt;/code&gt;中该块对应的bit是否为1（free），如果是则返回真。&lt;/li&gt;
+  &lt;li&gt;找到第一个空闲块后，将bitmap中对应的位置为0.&lt;/li&gt;
+  &lt;li&gt;使用flush_block()将该块对应的bitmap块写回磁盘，保持同步。因为flush_block()接收的是虚拟地址，所以还要使用&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;diskaddr&lt;/code&gt;将块号转化为虚拟地址。&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;bitmap&lt;/code&gt;数据结构在&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;fs.h&lt;/code&gt;中定义，是一个类型为&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;uint32_t&lt;/code&gt;的数组，那么数组的一个元素（32位）就可以表示32个块。要判断一个块是否空闲，应该用&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;bitmap[blockno/32] &amp;amp;= 1&amp;lt;&amp;lt;blockno%32&lt;/code&gt;是否为1来判断。则要将某一位置为0，可以用&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;bitmap[blockno/32] &amp;amp;= ~(1&amp;lt;&amp;lt;blockno%32)&lt;/code&gt;。&lt;/p&gt;
+
+&lt;p&gt;在JOS中，磁盘的第一个块（blockno=0）是boot sector，第二个块（blockno=1）是超级块，第三个块（blockno=2）开始才是bitmap块。因此给定一个块号blockno，它的bitmap所在的块为： &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;2+ (blockno/32) / (BLKSIZE /4 )&lt;/code&gt;.  一个bitmap元素的大小是4个字节，一个块大小是&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;BLKSIZE&lt;/code&gt;，所以一个块总共有&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;BLKSIZE/4&lt;/code&gt;个bitmap元素， blockno/32为该块对应的bitmap索引号，除以每块能存放的元素数就是相对的块偏移。&lt;/p&gt;
+
+&lt;p&gt;&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;diskaddr&lt;/code&gt;定义在&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;bc.c&lt;/code&gt;中，它接收一个磁盘块号，返回在文件系统进程中对应的虚拟地址。&lt;/p&gt;
+
+&lt;p&gt;alloc_block的实现如下：&lt;/p&gt;
+
+&lt;div class=&quot;language-c highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt;
+&lt;span class=&quot;nf&quot;&gt;alloc_block&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;void&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+&lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+	&lt;span class=&quot;c1&quot;&gt;// The bitmap consists of one or more blocks.  A single bitmap block&lt;/span&gt;
+	&lt;span class=&quot;c1&quot;&gt;// contains the in-use bits for BLKBITSIZE blocks.  There are&lt;/span&gt;
+	&lt;span class=&quot;c1&quot;&gt;// super-&amp;gt;s_nblocks blocks in the disk altogether.&lt;/span&gt;
+
+	&lt;span class=&quot;c1&quot;&gt;// LAB 5: Your code here.&lt;/span&gt;
+	&lt;span class=&quot;k&quot;&gt;for&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;uint32_t&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;blockno&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;blockno&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;lt;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;super&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;-&amp;gt;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;s_nblocks&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;blockno&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;++&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;){&lt;/span&gt;
+		&lt;span class=&quot;k&quot;&gt;if&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;block_is_free&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;blockno&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;){&lt;/span&gt;
+			&lt;span class=&quot;n&quot;&gt;bitmap&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;blockno&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;/&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;32&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;]&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;amp;=&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;~&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;1&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;lt;&amp;lt;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;blockno&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;%&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;32&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;));&lt;/span&gt; &lt;span class=&quot;c1&quot;&gt;//将bitmap上对应的位置为0，表示占用。&lt;/span&gt;
+			&lt;span class=&quot;n&quot;&gt;flush_block&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;diskaddr&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;2&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;+&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;blockno&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;/&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;32&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;/&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;BLKSIZE&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;/&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;4&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)));&lt;/span&gt; &lt;span class=&quot;c1&quot;&gt;//bitmap的第一块磁盘块号是2, blockno/32是该blockno在bitmap中的索引号。&lt;/span&gt;
+			&lt;span class=&quot;k&quot;&gt;return&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;blockno&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+		&lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
+	&lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
+
+	&lt;span class=&quot;k&quot;&gt;return&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;-&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;E_NO_DISK&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+&lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;h3 id=&quot;检查-2&quot;&gt;检查&lt;/h3&gt;
+
+&lt;p&gt;&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;make grade&lt;/code&gt;:&lt;/p&gt;
+
+&lt;p&gt;&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;alloc_block&lt;/code&gt;OK, 代码正确。&lt;/p&gt;
+
+&lt;hr /&gt;
+
+&lt;h2 id=&quot;todo4&quot;&gt;TODO4&lt;/h2&gt;
+
+&lt;blockquote&gt;
+  &lt;p&gt;实现file_block_walk和file_get_block。 file_block_walk从文件中的块偏移量映射到struct File或间接块中的指针，非常类似于pgdir_walk对页表所做的操作。 file_get_block更进一步，并映射到实际的磁盘块，并在必要时分配一个新的磁盘块。&lt;/p&gt;
+&lt;/blockquote&gt;
+
+&lt;h3 id=&quot;阅读fs-c中的代码&quot;&gt;阅读fs. c中的代码&lt;/h3&gt;
+
+&lt;p&gt;fs.c中实现了文件系统的各种操作，包括初始化、从根目录开始遍历文件系统以找到某个绝对路径标识的文件、在目录上分配一个文件的条目、获取一个文件的条目、获取文件的某个块等基本操作，以及对文件进行创建、打开、删除、修改、读取、写回磁盘、扩展、截短等操作。&lt;/p&gt;
+
+&lt;p&gt;JOS中，有两个磁盘映像。如果磁盘1可用的话，磁盘0只用来装载内核，磁盘1上才实现了文件系统。&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;fs_init()&lt;/code&gt;函数检查可用磁盘，并设置超级块&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;super&lt;/code&gt;为该磁盘的第二块。&lt;/p&gt;
+
+&lt;p&gt;fs.c中所有的函数以及对应的功能为：&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;bitmap操作：
+    &lt;ul&gt;
+      &lt;li&gt;&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;block_is_free(blockno)&lt;/code&gt;: 接收磁盘块号，根据bitmap判断块是否空闲&lt;/li&gt;
+      &lt;li&gt;&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;free_block(blockno)&lt;/code&gt;: 接收磁盘块号，释放该块，将bitmap中对应位置1.&lt;/li&gt;
+      &lt;li&gt;&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;alloc_block()&lt;/code&gt;: 根据bitmap找到第一个空闲块，将它分配出去，返回块号&lt;/li&gt;
+    &lt;/ul&gt;
+  &lt;/li&gt;
+  &lt;li&gt;文件系统结构构建和维护：
+    &lt;ul&gt;
+      &lt;li&gt;&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;fs_init()&lt;/code&gt;： 初始化文件系统。找到可用磁盘，设置磁盘驱动，读取超级块并保存指针到&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;super&lt;/code&gt;。&lt;/li&gt;
+      &lt;li&gt;&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;file_block_walk(struct File *f, uint32_t filebno, uint32_t **ppdiskbno, bool alloc)&lt;/code&gt;: 查找文件&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;f&lt;/code&gt;的第&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;filebno&lt;/code&gt;个块的磁盘地址（通过该文件元数据中的索引来查找），将该索引的地址存放到&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;ppdiskbno&lt;/code&gt;中；由于直接索引只有10个，则当块号&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;fileno&lt;/code&gt;大于9时，而间接索引还没有分配的时候，如果&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;alloc&lt;/code&gt;，就分配一个间接索引页，然后将&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;ppdiskbno&lt;/code&gt;置为该间接索引页上对应的索引地址。&lt;/li&gt;
+      &lt;li&gt;&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;file_get_block(struct File *f, uint32_t filebno, char **blk) &lt;/code&gt;: 查找文件&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;f&lt;/code&gt;的第&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;filebno&lt;/code&gt;块在文件系统进程中对应的虚拟地址，并将其保存在&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;blk&lt;/code&gt;中&lt;/li&gt;
+      &lt;li&gt;&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt; dir_lookup(struct File *dir, const char *name, struct File **file) &lt;/code&gt;: 在&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;DIR&lt;/code&gt;指定的目录下寻找名字为&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;name&lt;/code&gt;的文件的元数据，并将元数据的地址保存到&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;file&lt;/code&gt;中。&lt;/li&gt;
+      &lt;li&gt;&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt; dir_alloc_file(struct File *dir, struct File **file) &lt;/code&gt;: 在&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;dir&lt;/code&gt;目录下寻找一个没有被使用的&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;File&lt;/code&gt;结构，把它分配给一个新文件使用（调用者负责填充这块元数据），将它的地址存放到&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;file&lt;/code&gt;中。&lt;/li&gt;
+      &lt;li&gt;&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt; walk_path(const char *path, struct File **pdir, struct File **pf, char *lastelem) &lt;/code&gt;: 解析&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;path&lt;/code&gt;中的文件路径，如果成功，将文件的元数据地址存放在&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;pf&lt;/code&gt;中，将文件所在目录的元数据地址存放在&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;pdir&lt;/code&gt;中。如果不成功，&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;pdir&lt;/code&gt;还是存放最后匹配的目录元数据地址，而&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;lastelem&lt;/code&gt;存放最后无法匹配的路径字符串。例如目录/aaa/bbb/下不存在/aaa/bbb/c.c，则pdir指向/aaa/bbb的元数据，&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;lastelem&lt;/code&gt;=’c.c’&lt;/li&gt;
+    &lt;/ul&gt;
+  &lt;/li&gt;
+  &lt;li&gt;文件操作：
+    &lt;ul&gt;
+      &lt;li&gt;&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;file_create(const char *path, struct File **pf)&lt;/code&gt;: 创建&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;path&lt;/code&gt;文件/目录，如果成功，将该文件或目录的元数据指针放在&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;pf&lt;/code&gt;中。&lt;/li&gt;
+      &lt;li&gt;&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;file_open(const char *path, struct File **pf)&lt;/code&gt;: 打开&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;path&lt;/code&gt;， 如果成功，将该文件元数据地址赋给&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;pf&lt;/code&gt;.&lt;/li&gt;
+      &lt;li&gt;&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;file_read(struct File *f, void *buf, size_t count, off_t offset)&lt;/code&gt;: 从文件&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;f&lt;/code&gt;的&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;offset&lt;/code&gt;位置（字节为单位）开始， 读取&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;count&lt;/code&gt;个字节到&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;buf&lt;/code&gt;中，返回实际读取字节数。&lt;/li&gt;
+      &lt;li&gt;&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;file_write(struct File *f, const void *buf, size_t count, off_t offset)&lt;/code&gt;: 向文件&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;f&lt;/code&gt;从&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;offset&lt;/code&gt;位置开始，写入&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;count&lt;/code&gt;个字节，数据的来源是&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;buf&lt;/code&gt;。 如果写的时候文件的大小超过了它已分配的块就要扩展文件。&lt;/li&gt;
+      &lt;li&gt;&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;file_free_block(struct File *f, uint32_t filebno)&lt;/code&gt;: 删除文件&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;f&lt;/code&gt;的第&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;filebno&lt;/code&gt;个块。&lt;/li&gt;
+      &lt;li&gt;&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;file_truncate_blocks(struct File *f, off_t newsize)&lt;/code&gt;: 将文件&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;f&lt;/code&gt;截短到&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;newsize&lt;/code&gt;的大小。具体操作是，计算原来文件具有的块数和新的块数，将超过新块数的部分释放掉。如果新的大小已经小于10块，则不需要间接索引了，释放掉间接索引块&lt;/li&gt;
+      &lt;li&gt;&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;file_set_size(struct File *f, off_t newsize)&lt;/code&gt;: 设置文件&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;f&lt;/code&gt;的大小为&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;newsize&lt;/code&gt;,自动截短或扩展。&lt;/li&gt;
+      &lt;li&gt;&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;file_flush(struct File *f)&lt;/code&gt;: 将文件&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;f&lt;/code&gt;的数据和元数据写回磁盘，遍历文件的所有块，将所有的脏块写回磁盘。&lt;/li&gt;
+    &lt;/ul&gt;
+  &lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h3 id=&quot;file_block_walk&quot;&gt;file_block_walk（）&lt;/h3&gt;
+
+&lt;p&gt;查找文件&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;f&lt;/code&gt;的第&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;filebno&lt;/code&gt;个块的磁盘地址（通过该文件元数据中的索引来查找），将该索引的地址存放到&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;ppdiskbno&lt;/code&gt;中。如果&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;alloc&lt;/code&gt;置位，必要时分配间接索引页，否则返回错误信息。函数的过程：&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;判断&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;filebno&lt;/code&gt;，是否在直接索引支持的范围内（0-9），如果是，就直接将ppdiskbno赋为直接索引上对应的条目的地址，即&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;&amp;amp; (f-&amp;gt;f_direct[filebno])&lt;/code&gt;.&lt;/li&gt;
+  &lt;li&gt;如果&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;filebno&lt;/code&gt;大于9，但是小于1034, 即文件系统可以支持的文件最大块数
+    &lt;ul&gt;
+      &lt;li&gt;如果间接索引块还没有分配，要检查&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;alloc&lt;/code&gt;，如果alloc为0，返回&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;-E_NOT_FOUND&lt;/code&gt;表示找不到索引条目。&lt;/li&gt;
+      &lt;li&gt;如果alloc为1：
+        &lt;ul&gt;
+          &lt;li&gt;调用&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;alloc_block&lt;/code&gt;为间接索引分配一个块， 如果分配错误，返回&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;-E_NO_DISK&lt;/code&gt;。&lt;/li&gt;
+          &lt;li&gt;分配成功，则将间接索引链接到这个块上，即&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;f-&amp;gt;f_indirect = blockno&lt;/code&gt;，这样查询10号以后的块时，首先查找&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;f-&amp;gt;f_indirect&lt;/code&gt;得到索引块的地址，然后在索引块上找到对应的直接索引条目，根据该条目的值找到物理块号。&lt;/li&gt;
+          &lt;li&gt;分配好之后，还要将索引块初始化为全0，表示这些文件块还没有分配和映射。&lt;/li&gt;
+        &lt;/ul&gt;
+      &lt;/li&gt;
+      &lt;li&gt;无论是新分配的，还是原来就存在的，都要将间接索引块上对应的索引条目地址存放到&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;ppdiskbno&lt;/code&gt;中。 &lt;strong&gt;如何获得索引块上对应的条目地址呢？&lt;/strong&gt; 首先，&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;f-&amp;gt;f_indirect&lt;/code&gt;给出索引块的物理地址，用&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;diskaddr(f-&amp;gt;f_indirect)&lt;/code&gt;就可以知道它的虚拟地址，也就是这个块上第一个索引条目的地址。这个虚拟地址再加上&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;filebno&lt;/code&gt;在索引块上的偏移量就可以得到索引条目的虚拟地址，代码上有两种实现方式：
+        &lt;ol&gt;
+          &lt;li&gt;&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;(uintptr_t*) diskaddr(f-&amp;gt;f_indirect)&lt;/code&gt;将索引块的虚拟地址转为JOS的指针类型，指针可以用&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;[i]&lt;/code&gt;操作符来取得第i个数据，这里i应该是&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;filebno-10&lt;/code&gt;, 因为是索引块上的第&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;filebno-10&lt;/code&gt;条索引，最后用&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;&amp;amp;&lt;/code&gt;取址。&lt;/li&gt;
+          &lt;li&gt;首先用&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt; diskaddr(f-&amp;gt;f_indirect)&lt;/code&gt;获得第一个索引条目的虚拟地址，然后加上&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;(filebno-10)*4&lt;/code&gt;就得到第&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;filebno-10&lt;/code&gt;的地址，因为每个索引条目大小是4个字节。&lt;/li&gt;
+        &lt;/ol&gt;
+      &lt;/li&gt;
+    &lt;/ul&gt;
+  &lt;/li&gt;
+  &lt;li&gt;如果&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;filebno&lt;/code&gt;超过1034，是无效的，返回&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;-E_INVAL&lt;/code&gt;，否则返回0，表示成功。&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;div class=&quot;language-c highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;k&quot;&gt;static&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt;
+&lt;span class=&quot;nf&quot;&gt;file_block_walk&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;struct&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;File&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;f&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;uint32_t&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;filebno&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;uint32_t&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;**&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;ppdiskbno&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;bool&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;alloc&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+&lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+       &lt;span class=&quot;c1&quot;&gt;// LAB 5: Your code here.&lt;/span&gt;
+	&lt;span class=&quot;kt&quot;&gt;uint32_t&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;blockno&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+	&lt;span class=&quot;k&quot;&gt;if&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;filebno&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;lt;=&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;9&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;){&lt;/span&gt;
+		&lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;ppdiskbno&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;amp;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;f&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;-&amp;gt;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;f_direct&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;filebno&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;]);&lt;/span&gt;
+	&lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
+	&lt;span class=&quot;k&quot;&gt;else&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;if&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;filebno&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;lt;&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;1034&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;){&lt;/span&gt;
+		&lt;span class=&quot;k&quot;&gt;if&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;!&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;f&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;-&amp;gt;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;f_indirect&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;){&lt;/span&gt;
+			&lt;span class=&quot;k&quot;&gt;if&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;!&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;alloc&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+				&lt;span class=&quot;k&quot;&gt;return&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;-&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;E_NOT_FOUND&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+			
+			&lt;span class=&quot;k&quot;&gt;else&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+				&lt;span class=&quot;k&quot;&gt;if&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;((&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;blockno&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;alloc_block&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;())&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;lt;&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+					&lt;span class=&quot;k&quot;&gt;return&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;-&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;E_NO_DISK&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+				&lt;span class=&quot;n&quot;&gt;f&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;-&amp;gt;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;f_indirect&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;blockno&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+				&lt;span class=&quot;n&quot;&gt;memset&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;diskaddr&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;blockno&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;),&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;BLKSIZE&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+			&lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
+		&lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
+		&lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;ppdiskbno&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;amp;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;((&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;uintptr_t&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;diskaddr&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;f&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;-&amp;gt;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;f_indirect&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;))[&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;filebno&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;-&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;10&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;];&lt;/span&gt;
+        
+       &lt;span class=&quot;c1&quot;&gt;//或者 *ppdiskbno = diskaddr(f-&amp;gt;f_indirect)+ (filebno-10)*4;&lt;/span&gt;
+	&lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
+	&lt;span class=&quot;k&quot;&gt;else&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;return&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;-&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;E_INVAL&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+	&lt;span class=&quot;k&quot;&gt;return&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+		
+&lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;h3 id=&quot;file_get_block&quot;&gt;file_get_block()&lt;/h3&gt;
+
+&lt;p&gt;file_get_block在file_block_walk的基础上，更进一步地，获取文件块对应的物理块号，并将物理块在文件系统进程中对应的虚拟地址保存在&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;blk&lt;/code&gt;中，过程是：&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;调用&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;file_block_walk&lt;/code&gt;获取&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;f&lt;/code&gt;的第&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;filebno&lt;/code&gt;个块的索引条目地址，保存在&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;slot&lt;/code&gt;中，要把&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;alloc&lt;/code&gt;设置为1，表示如果需要用到间接索引但索引块还未分配时要自动分配。&lt;/li&gt;
+  &lt;li&gt;如果&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;flie_block_walk&lt;/code&gt;返回值小于0，表示发生了错误，返回对应的错误码。&lt;/li&gt;
+  &lt;li&gt;如果&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;slot&lt;/code&gt;的值为0，即该文件逻辑块还没有分配到具体的物理块，可能是文件被创建或者被扩展等，要为该文件块分配一个物理块，使用&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;alloc_block()&lt;/code&gt;
+    &lt;ul&gt;
+      &lt;li&gt;如果分配错误应返回&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;-E_NO_DISK&lt;/code&gt;&lt;/li&gt;
+      &lt;li&gt;分配成功，则令对应的索引条目值为返回的物理块号，这样文件块就被映射到物理块上。&lt;/li&gt;
+    &lt;/ul&gt;
+  &lt;/li&gt;
+  &lt;li&gt;无论文件块原来是否已经分配，将物理块对应的虚拟地址保存在&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;blk&lt;/code&gt;中。&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;*slot&lt;/code&gt;是对应的物理块号，调用&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;diskaddr(*slot)&lt;/code&gt;就可以找到虚拟地址，将它保存在&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;blk&lt;/code&gt;中，成功返回0.&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;div class=&quot;language-c highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt;
+&lt;span class=&quot;nf&quot;&gt;file_get_block&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;struct&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;File&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;f&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;uint32_t&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;filebno&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;char&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;**&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;blk&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+&lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+       &lt;span class=&quot;c1&quot;&gt;// LAB 5: Your code here.&lt;/span&gt;
+	&lt;span class=&quot;kt&quot;&gt;uint32_t&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;slot&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;nb&quot;&gt;NULL&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;    &lt;span class=&quot;c1&quot;&gt;//slot = 索引条目的地址，*slot = 文件块对应的物理块号码&lt;/span&gt;
+	&lt;span class=&quot;kt&quot;&gt;uint32_t&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;errorcode&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;file_block_walk&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;f&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;filebno&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;amp;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;slot&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;1&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+	&lt;span class=&quot;kt&quot;&gt;uint32_t&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;blockno&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+
+	&lt;span class=&quot;k&quot;&gt;if&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;errorcode&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;lt;&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+		&lt;span class=&quot;k&quot;&gt;return&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;errorcode&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+	&lt;span class=&quot;k&quot;&gt;if&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;!*&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;slot&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;){&lt;/span&gt;
+		&lt;span class=&quot;k&quot;&gt;if&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;((&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;blockno&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;alloc_block&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;())&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;lt;&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+			&lt;span class=&quot;k&quot;&gt;return&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;-&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;E_NO_DISK&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+		&lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;slot&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;blockno&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+	&lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
+	&lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;blk&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;char&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;diskaddr&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;slot&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+	&lt;span class=&quot;k&quot;&gt;return&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+
+&lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;h3 id=&quot;检查-3&quot;&gt;检查&lt;/h3&gt;
+
+&lt;p&gt;&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;make grade&lt;/code&gt;:&lt;/p&gt;
+
+&lt;p&gt;&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;file_get_block&lt;/code&gt;OK，代码正确。&lt;/p&gt;
+
+&lt;hr /&gt;
+
+&lt;h2 id=&quot;todo5&quot;&gt;TODO5:&lt;/h2&gt;
+
+&lt;blockquote&gt;
+  &lt;p&gt;•在fs/serv.c中实现serve_read 。&lt;/p&gt;
+
+  &lt;p&gt;•serve_read的大量操作将由fs / fs.c中已经实现的file_read来完成。 serve_read只需提供RPC接口即可读取文件。 查看serve_set_size中的注释和代码，以大致了解服务器功能的结构。&lt;/p&gt;
+&lt;/blockquote&gt;
+
+&lt;h3 id=&quot;请求文件系统服务的过程&quot;&gt;请求文件系统服务的过程&lt;/h3&gt;
+
+&lt;p&gt;文件系统进程内部实现了对文件的各种操作，但是用户进程无法直接调用这些函数，因为它们是在文件系统进程的内存空间内。这时，需要采用&lt;strong&gt;进程间通信（IPC机制）&lt;/strong&gt;来在进程之间交换数据或者方法。JOS中，使用主从式架构来进行文件系统和其他进程之间的通信。通常，使用IPC进行数据交换的两个进程可以被分为服务端和用户端，客户端向服务器发出请求，服务器进行处理之后回应请求。JOS用建立在IPC基础上的远程过程调用（RPC）来进行通信。RPC在两个应用之间建立TCP连接，然后客户端应用将过程调用的参数序列化成二进制数据之后发送给服务端，服务端反序列化之后进行过程调用，返回值再序列化后发送回客户端。&lt;/p&gt;
+
+&lt;p&gt;JOS的文件系统调用过程是：&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;http://localhost:4000/assets/images/report/OS6.png&quot; alt=&quot;image-20191213134403520&quot; style=&quot;zoom: 40%;&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;底层实际上是进程间通信。&lt;/p&gt;
+
+&lt;p&gt;文件系统的相关数据结构有：&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;文件描述符&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;Fd&lt;/code&gt;： 文件所在的设备id（因为一个文件系统可以跨多个设备），是否打开, 以及&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;fd_offset&lt;/code&gt;文件的光标等。&lt;/li&gt;
+  &lt;li&gt;设备描述符&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;Dev&lt;/code&gt;： 设备上各种操作调用的入口，设备名字和设备id。&lt;/li&gt;
+  &lt;li&gt;打开文件描述符列表&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;OpenFile&lt;/code&gt;结构，由内核维护的&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;opentab&lt;/code&gt;数组，保存了文件元数据的地址，文件打开状态，文件id以及磁盘上文件描述符&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;Fd&lt;/code&gt;结构的指针&lt;/li&gt;
+  &lt;li&gt;&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;File&lt;/code&gt;结构（文件元数据）：维护文件重要信息，完成逻辑块到物理块的映射等。&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;&lt;img src=&quot;https://blog-1253119293.cos.ap-beijing.myqcloud.com/6.828/lab5/lab5_4_%E6%96%87%E4%BB%B6%E7%B3%BB%E7%BB%9F%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84.png&quot; alt=&quot;技術分享圖片&quot; style=&quot;zoom:50%;&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;文件描述符表映射在磁盘的0xD0000000处，文件描述符结构中包含了设备id，当进程调用&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;fd.c&lt;/code&gt;中的&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;read&lt;/code&gt;时，将传入文件描述符号，通过文件描述符号找到对应地&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;Fd&lt;/code&gt;结构体，进而查找设备，设备用&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;Dev&lt;/code&gt;结构来描述，结构体中包含了&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;dev_read&lt;/code&gt;, &lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;dev_write&lt;/code&gt;等设备读、写函数的指针。&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;devfile_read&lt;/code&gt;函数定义在&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;file.c&lt;/code&gt;中，它将调用&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;fsipc()&lt;/code&gt;向服务器进程发起请求。&lt;/p&gt;
+
+&lt;p&gt;&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;fsipc()&lt;/code&gt;函数专门负责与文件系统进程进行通信，它建立在&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;ipc&lt;/code&gt;机制上。&lt;/p&gt;
+
+&lt;p&gt;&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;ipc.c&lt;/code&gt;封装了两个函数——&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;ipc_send( envid_t to_env, uint32_t val, void *pg, int perm )&lt;/code&gt;和&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;ipc_recv( envid_t *from_env_store, void *pg, int *perm_store )&lt;/code&gt;，允许与某一个环境进行数据交换，交换的消息包含两个部分：&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;1个32位的值&lt;/li&gt;
+  &lt;li&gt;可选的页映射关系&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;其中，&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;send&lt;/code&gt;中的&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;val&lt;/code&gt;是交换的数值，&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;pg&lt;/code&gt;参数表示发送进程希望与接收进程共享&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;pg&lt;/code&gt;对应的物理页，并且在接收进程中，对该页的权限是&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;perm&lt;/code&gt;。&lt;/p&gt;
+
+&lt;p&gt;文件系统实现了一个&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;Fspic&lt;/code&gt;数据结构：&lt;/p&gt;
+
+&lt;div class=&quot;language-c highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;k&quot;&gt;union&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Fsipc&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+	&lt;span class=&quot;k&quot;&gt;struct&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Fsreq_open&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+		&lt;span class=&quot;kt&quot;&gt;char&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;req_path&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;MAXPATHLEN&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;];&lt;/span&gt;
+		&lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;req_omode&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+	&lt;span class=&quot;p&quot;&gt;}&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;open&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+	&lt;span class=&quot;k&quot;&gt;struct&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Fsreq_set_size&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+		&lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;req_fileid&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+		&lt;span class=&quot;kt&quot;&gt;off_t&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;req_size&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+	&lt;span class=&quot;p&quot;&gt;}&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;set_size&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+	&lt;span class=&quot;k&quot;&gt;struct&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Fsreq_read&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+		&lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;req_fileid&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+		&lt;span class=&quot;kt&quot;&gt;size_t&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;req_n&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+	&lt;span class=&quot;p&quot;&gt;}&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;read&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+	&lt;span class=&quot;k&quot;&gt;struct&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Fsret_read&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+		&lt;span class=&quot;kt&quot;&gt;char&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;ret_buf&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;PGSIZE&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;];&lt;/span&gt;
+	&lt;span class=&quot;p&quot;&gt;}&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;readRet&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+	&lt;span class=&quot;k&quot;&gt;struct&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Fsreq_write&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+		&lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;req_fileid&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+		&lt;span class=&quot;kt&quot;&gt;size_t&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;req_n&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+		&lt;span class=&quot;kt&quot;&gt;char&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;req_buf&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;PGSIZE&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;-&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;sizeof&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;+&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;sizeof&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;size_t&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;))];&lt;/span&gt;
+	&lt;span class=&quot;p&quot;&gt;}&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;write&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+	&lt;span class=&quot;k&quot;&gt;struct&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Fsreq_stat&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+		&lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;req_fileid&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+	&lt;span class=&quot;p&quot;&gt;}&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;stat&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+	&lt;span class=&quot;k&quot;&gt;struct&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Fsret_stat&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+		&lt;span class=&quot;kt&quot;&gt;char&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;ret_name&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;MAXNAMELEN&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;];&lt;/span&gt;
+		&lt;span class=&quot;kt&quot;&gt;off_t&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;ret_size&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+		&lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;ret_isdir&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+	&lt;span class=&quot;p&quot;&gt;}&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;statRet&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+	&lt;span class=&quot;k&quot;&gt;struct&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Fsreq_flush&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+		&lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;req_fileid&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+	&lt;span class=&quot;p&quot;&gt;}&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;flush&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+	&lt;span class=&quot;k&quot;&gt;struct&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Fsreq_remove&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+		&lt;span class=&quot;kt&quot;&gt;char&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;req_path&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;MAXPATHLEN&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;];&lt;/span&gt;
+	&lt;span class=&quot;p&quot;&gt;}&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;remove&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+
+	&lt;span class=&quot;c1&quot;&gt;// Ensure Fsipc is one page&lt;/span&gt;
+	&lt;span class=&quot;kt&quot;&gt;char&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;_pad&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;PGSIZE&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;];&lt;/span&gt;
+&lt;span class=&quot;p&quot;&gt;};&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;它是一个联合，其中的各种结构体保存了对应的文件操作需要的参数，例如&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;fsipc.read&lt;/code&gt;就有要读取的文件的id以及读取的大小&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;req_n&lt;/code&gt;. &lt;strong&gt;所以，在进程与文件系统通信的时候，两者可以共享一个保存了&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;Fsipc&lt;/code&gt;结构的页面，从而实现参数的传递。&lt;/strong&gt; 在&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;file.c&lt;/code&gt;中，这个&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;Fspic&lt;/code&gt;结构的变量名为&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;fspicbuf&lt;/code&gt;.&lt;/p&gt;
+
+&lt;p&gt;&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;devfile_read&lt;/code&gt;函数接收文件id以及读取大小，设置&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;fspicbuf&lt;/code&gt;中对应的字段，然后调用&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;fsipc()&lt;/code&gt;。&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;fsipc&lt;/code&gt;接收两个参数，一个是文件操作的类型&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;type&lt;/code&gt;，另一个是虚拟地址，这里应该传入&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;fsipcbuf&lt;/code&gt;, 然后它会调用&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;ipc_send()&lt;/code&gt;，其中要交换的32位值就是&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;type&lt;/code&gt;，对于文件读取，&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;type&lt;/code&gt;置为&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;FSREQ_READ&lt;/code&gt;。然后继续调用&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;ipc_recv&lt;/code&gt;等待文件系统响应。当文件系统响应后，把结果依次返回给用户进程。&lt;/p&gt;
+
+&lt;p&gt;在服务端，文件系统中的&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;serve()&lt;/code&gt;会循环调用&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;ipc_recv()&lt;/code&gt;监听请求，接收到请求之后，它会解析请求中的&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;type&lt;/code&gt;参数，然后具体分发到对应的handler。&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;type&lt;/code&gt;和handler的对应关系是：&lt;/p&gt;
+
+&lt;div class=&quot;language-c highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;n&quot;&gt;fshandler&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;handlers&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;[]&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+	&lt;span class=&quot;c1&quot;&gt;// Open is handled specially because it passes pages&lt;/span&gt;
+	&lt;span class=&quot;cm&quot;&gt;/* [FSREQ_OPEN] =	(fshandler)serve_open, */&lt;/span&gt;
+	&lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;FSREQ_READ&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;]&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;		&lt;span class=&quot;n&quot;&gt;serve_read&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt;
+	&lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;FSREQ_STAT&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;]&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;		&lt;span class=&quot;n&quot;&gt;serve_stat&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt;
+	&lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;FSREQ_FLUSH&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;]&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;		&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;fshandler&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;serve_flush&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt;
+	&lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;FSREQ_WRITE&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;]&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;		&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;fshandler&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;serve_write&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt;
+	&lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;FSREQ_SET_SIZE&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;]&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;	&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;fshandler&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;serve_set_size&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt;
+	&lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;FSREQ_SYNC&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;]&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;		&lt;span class=&quot;n&quot;&gt;serve_sync&lt;/span&gt;
+&lt;span class=&quot;p&quot;&gt;};&lt;/span&gt;
+
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;调用&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;ipc_recv()&lt;/code&gt;时，&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;serve&lt;/code&gt;会传入一个参数&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;fsreq&lt;/code&gt;，它表示文件系统接收请求进程的共享页，要将共享页映射到虚拟内存的什么位置，&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;fsreq&lt;/code&gt;的定义是：&lt;/p&gt;
+
+&lt;div class=&quot;language-c highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;c1&quot;&gt;// Virtual address at which to receive page mappings containing client requests.&lt;/span&gt;
+&lt;span class=&quot;k&quot;&gt;union&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Fsipc&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;fsreq&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;union&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Fsipc&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;&lt;span class=&quot;mh&quot;&gt;0x0ffff000&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;也是一个&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;Fsipc&lt;/code&gt;类型的指针。通过&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;Fsipc&lt;/code&gt;，文件系统可以接收来自客户进程的参数。&lt;/p&gt;
+
+&lt;p&gt;从对应的handler返回后，&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;serve()&lt;/code&gt;函数也负责调用&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;ipc_send()&lt;/code&gt;将结果返回给&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;fsipc&lt;/code&gt;。其中，交换的32位数据就是各个handler的返回状态，例如0表示成功，-E_NO_DISK表示磁盘空间不足等。&lt;strong&gt;在&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;handler&lt;/code&gt;中，因为文件系统与客户进程共享&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;fsreq&lt;/code&gt;数据结构，那么它可以将读取出来的文件数据放在&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;fsreq.readRet&lt;/code&gt;中，这相当于一个块的缓冲区，让用户去读取。&lt;/strong&gt; 另外，如果调用的类型是&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;FSREQ_OPEN&lt;/code&gt;， 还会将文件描述符&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;Fd&lt;/code&gt;结构所在的页地址放到&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;pg&lt;/code&gt;中，与用户进程共享。&lt;/p&gt;
+
+&lt;h3 id=&quot;serve_set_size阅读&quot;&gt;serve_set_size()阅读&lt;/h3&gt;
+
+&lt;p&gt;这个函数是将&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;fs.c&lt;/code&gt;中的&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;file_set_size()&lt;/code&gt;函数封装成一个handler，所有的handler调用入口都是&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;serve&lt;/code&gt;函数。除了&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;serve_open&lt;/code&gt;以外，所有的handler都只接受两个参数，一个是服务请求者的进程ID（&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;envid&lt;/code&gt;或者&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;whom&lt;/code&gt;），另一个是与请求者共享的&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;fsreq&lt;/code&gt;页，上面保存了调用的参数。&lt;/p&gt;
+
+&lt;div class=&quot;language-c highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;kt&quot;&gt;void&lt;/span&gt;
+&lt;span class=&quot;nf&quot;&gt;serve&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;void&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+&lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+	&lt;span class=&quot;kt&quot;&gt;uint32_t&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;req&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;whom&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+	&lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;perm&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;r&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+	&lt;span class=&quot;kt&quot;&gt;void&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;pg&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+
+	&lt;span class=&quot;k&quot;&gt;while&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;1&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+		&lt;span class=&quot;n&quot;&gt;perm&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+		&lt;span class=&quot;n&quot;&gt;req&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;ipc_recv&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;((&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;int32_t&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;amp;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;whom&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;fsreq&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;amp;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;perm&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+		&lt;span class=&quot;k&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;debug&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+			&lt;span class=&quot;n&quot;&gt;cprintf&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;fs req %d from %08x [page %08x: %s]&lt;/span&gt;&lt;span class=&quot;se&quot;&gt;\n&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt;
+				&lt;span class=&quot;n&quot;&gt;req&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;whom&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;uvpt&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;PGNUM&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;fsreq&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)],&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;fsreq&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+
+		&lt;span class=&quot;c1&quot;&gt;// All requests must contain an argument page&lt;/span&gt;
+		&lt;span class=&quot;k&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;!&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;perm&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;amp;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;PTE_P&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;))&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+			&lt;span class=&quot;n&quot;&gt;cprintf&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;Invalid request from %08x: no argument page&lt;/span&gt;&lt;span class=&quot;se&quot;&gt;\n&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt;
+				&lt;span class=&quot;n&quot;&gt;whom&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+			&lt;span class=&quot;k&quot;&gt;continue&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt; &lt;span class=&quot;c1&quot;&gt;// just leave it hanging...&lt;/span&gt;
+		&lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
+
+		&lt;span class=&quot;n&quot;&gt;pg&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;nb&quot;&gt;NULL&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+		&lt;span class=&quot;k&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;req&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;==&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;FSREQ_OPEN&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+			&lt;span class=&quot;n&quot;&gt;r&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;serve_open&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;whom&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;struct&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Fsreq_open&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;fsreq&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;amp;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;pg&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;amp;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;perm&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+		&lt;span class=&quot;p&quot;&gt;}&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;else&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;req&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;lt;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;ARRAY_SIZE&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;handlers&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;amp;&amp;amp;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;handlers&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;req&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;])&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+			&lt;span class=&quot;n&quot;&gt;r&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;handlers&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;req&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;](&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;whom&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;fsreq&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+		&lt;span class=&quot;p&quot;&gt;}&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;else&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+			&lt;span class=&quot;n&quot;&gt;cprintf&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;Invalid request code %d from %08x&lt;/span&gt;&lt;span class=&quot;se&quot;&gt;\n&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;req&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;whom&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+			&lt;span class=&quot;n&quot;&gt;r&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;-&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;E_INVAL&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+		&lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
+		&lt;span class=&quot;n&quot;&gt;ipc_send&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;whom&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;r&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;pg&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;perm&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+		&lt;span class=&quot;n&quot;&gt;sys_page_unmap&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;fsreq&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+	&lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
+&lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;serve_set_size&lt;/code&gt;中，&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;fsreq&lt;/code&gt;union中只包含了&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;set_size&lt;/code&gt;结构体，可以通过&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;req-&amp;gt;req_fileid&lt;/code&gt;获取文件id，&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;req-&amp;gt;req_size&lt;/code&gt;获取要设置的文件大小。&lt;/p&gt;
+
+&lt;p&gt;首先调用&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;openfile_lookup&lt;/code&gt;来判断该进程是否打开了该文件。&lt;strong&gt;内核维护了系统中所有被打开的文件在&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;opentab&lt;/code&gt;数组中，而每一个进程也维护了自己打开文件的描述符&lt;/strong&gt;。&lt;/p&gt;
+
+&lt;p&gt;如果进程未打开文件，不可以调用&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;set_file_size()&lt;/code&gt;，返回错误码。否则，&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;openfile_lookup&lt;/code&gt;会将该文件的描述符保存在&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;o&lt;/code&gt;中，通过&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;o-&amp;gt;o_file&lt;/code&gt;就可以获取该文件的元数据指针。直接调用&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;file_set_size&lt;/code&gt;并返回返回值即可。&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;set_size&lt;/code&gt;不需要为用户进程提供文件数据，只需要交换一个操作成功与否的状态信息。&lt;/p&gt;
+
+&lt;div class=&quot;language-c highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;c1&quot;&gt;// Set the size of req-&amp;gt;req_fileid to req-&amp;gt;req_size bytes, truncating&lt;/span&gt;
+&lt;span class=&quot;c1&quot;&gt;// or extending the file as necessary.&lt;/span&gt;
+&lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt;
+&lt;span class=&quot;nf&quot;&gt;serve_set_size&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;envid_t&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;envid&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;struct&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Fsreq_set_size&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;req&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+&lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+	&lt;span class=&quot;k&quot;&gt;struct&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;OpenFile&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;o&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+	&lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;r&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+
+	&lt;span class=&quot;k&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;debug&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+		&lt;span class=&quot;n&quot;&gt;cprintf&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;serve_set_size %08x %08x %08x&lt;/span&gt;&lt;span class=&quot;se&quot;&gt;\n&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;envid&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;req&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;-&amp;gt;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;req_fileid&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;req&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;-&amp;gt;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;req_size&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+
+	&lt;span class=&quot;c1&quot;&gt;// Every file system IPC call has the same general structure.&lt;/span&gt;
+	&lt;span class=&quot;c1&quot;&gt;// Here's how it goes.&lt;/span&gt;
+
+	&lt;span class=&quot;c1&quot;&gt;// First, use openfile_lookup to find the relevant open file.&lt;/span&gt;
+	&lt;span class=&quot;c1&quot;&gt;// On failure, return the error code to the client with ipc_send.&lt;/span&gt;
+	&lt;span class=&quot;k&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;((&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;r&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;openfile_lookup&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;envid&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;req&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;-&amp;gt;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;req_fileid&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;amp;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;o&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;))&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;lt;&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+		&lt;span class=&quot;k&quot;&gt;return&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;r&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+
+	&lt;span class=&quot;c1&quot;&gt;// Second, call the relevant file system function (from fs/fs.c).&lt;/span&gt;
+	&lt;span class=&quot;c1&quot;&gt;// On failure, return the error code to the client.&lt;/span&gt;
+	&lt;span class=&quot;k&quot;&gt;return&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;file_set_size&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;o&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;-&amp;gt;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;o_file&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;req&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;-&amp;gt;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;req_size&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+&lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;h3 id=&quot;serve_read&quot;&gt;serve_read()&lt;/h3&gt;
+
+&lt;p&gt;&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;serve_read&lt;/code&gt;处理读取文件的请求。它基于&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;fs.c&lt;/code&gt;中实现的&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;file_read&lt;/code&gt;函数，接收进程的id以及调用参数结构&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;Fsipc&lt;/code&gt;，从文件的当前光标处读取文件的&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;req_n&lt;/code&gt;个字节，到缓冲区&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;readRet.ret_buf&lt;/code&gt;中，并更新文件光标的位置。如果成功，返回实际读取的字节数，否则返回错误号码。&lt;/p&gt;
+
+&lt;p&gt;它的实现过程是：&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;
+    &lt;p&gt;首先从与客户端共享的调用参数页&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;ipc&lt;/code&gt;中，获取调用参数。因为是read操作，所以&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;fsipc&lt;/code&gt;中保存的是&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;REQ_READ&lt;/code&gt;结构体：&lt;/p&gt;
+
+    &lt;ul&gt;
+      &lt;li&gt;
+        &lt;div class=&quot;language-c highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;k&quot;&gt;struct&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Fsreq_read&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+		&lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;req_fileid&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+		&lt;span class=&quot;kt&quot;&gt;size_t&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;req_n&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+	&lt;span class=&quot;p&quot;&gt;}&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;read&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;        &lt;/div&gt;
+      &lt;/li&gt;
+    &lt;/ul&gt;
+  &lt;/li&gt;
+  &lt;li&gt;
+    &lt;p&gt;返回的时候，要填充&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;fspic&lt;/code&gt;中的&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;readRet&lt;/code&gt;结构体中的&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;ret_buf&lt;/code&gt;，而因为缓冲区的大小只有一页，所以一次devfile_read调用读取的字节数不可以超过4096字节。readRet结构体的定义：&lt;/p&gt;
+
+    &lt;ul&gt;
+      &lt;li&gt;
+        &lt;div class=&quot;language-c highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;k&quot;&gt;struct&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Fsret_read&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+		&lt;span class=&quot;kt&quot;&gt;char&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;ret_buf&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;PGSIZE&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;];&lt;/span&gt;
+	&lt;span class=&quot;p&quot;&gt;}&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;readRet&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;        &lt;/div&gt;
+      &lt;/li&gt;
+    &lt;/ul&gt;
+  &lt;/li&gt;
+  &lt;li&gt;
+    &lt;p&gt;调用&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;openfile_lookup&lt;/code&gt;找到该打开文件的&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;openFile&lt;/code&gt;结构体。如果返回值小于0，说明发生错误，返回错误码。&lt;/p&gt;
+  &lt;/li&gt;
+  &lt;li&gt;
+    &lt;p&gt;&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;OpenFile&lt;/code&gt;结构体中的o_file保存了文件的元数据指针，o_fd指向磁盘上的文件描述符结构&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;Fd&lt;/code&gt;，而&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;Fd&lt;/code&gt;保存了fd_offset,表示文件当前的光标位置。&lt;/p&gt;
+  &lt;/li&gt;
+  &lt;li&gt;
+    &lt;p&gt;调用&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;file_read()&lt;/code&gt;，它需要四个参数：文件元数据指针，读取数据的缓冲区，读取数据字节数，读取开始的offset。&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;read()&lt;/code&gt;调用隐式地从文件光标处读取n个字节，所以&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;offset&lt;/code&gt;参数可以通过&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;o-&amp;gt;o_fd-&amp;gt;fd_offset&lt;/code&gt;获得。缓冲区是&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;ret-&amp;gt;ret_buf&lt;/code&gt;。&lt;/p&gt;
+  &lt;/li&gt;
+  &lt;li&gt;
+    &lt;p&gt;读取失败的话返回错误码，否则将文件光标移动到读取完成的位置。&lt;/p&gt;
+  &lt;/li&gt;
+  &lt;li&gt;
+    &lt;p&gt;返回实际读取的字节数。&lt;/p&gt;
+  &lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;div class=&quot;language-c highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt;
+&lt;span class=&quot;nf&quot;&gt;serve_read&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;envid_t&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;envid&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;union&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Fsipc&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;ipc&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+&lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+	&lt;span class=&quot;k&quot;&gt;struct&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Fsreq_read&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;req&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;amp;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;ipc&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;-&amp;gt;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;read&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+	&lt;span class=&quot;k&quot;&gt;struct&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Fsret_read&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;ret&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;amp;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;ipc&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;-&amp;gt;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;readRet&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+	&lt;span class=&quot;k&quot;&gt;struct&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;OpenFile&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;o&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+	&lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;r&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+
+	&lt;span class=&quot;k&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;debug&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+		&lt;span class=&quot;n&quot;&gt;cprintf&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;serve_read %08x %08x %08x&lt;/span&gt;&lt;span class=&quot;se&quot;&gt;\n&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;envid&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;req&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;-&amp;gt;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;req_fileid&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;req&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;-&amp;gt;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;req_n&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+
+	&lt;span class=&quot;c1&quot;&gt;// Lab 5: Your code here:&lt;/span&gt;
+	&lt;span class=&quot;k&quot;&gt;if&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;((&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;r&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;openfile_lookup&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;envid&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;req&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;-&amp;gt;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;req_fileid&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;amp;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;o&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;))&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;lt;&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+		&lt;span class=&quot;k&quot;&gt;return&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;r&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+	
+	&lt;span class=&quot;k&quot;&gt;if&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;((&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;r&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;file_read&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;o&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;-&amp;gt;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;o_file&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;ret&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;-&amp;gt;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;ret_buf&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;req&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;-&amp;gt;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;req_n&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;o&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;-&amp;gt;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;o_fd&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;-&amp;gt;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;fd_offset&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;))&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;lt;&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+		&lt;span class=&quot;k&quot;&gt;return&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;r&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+	&lt;span class=&quot;n&quot;&gt;o&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;-&amp;gt;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;o_fd&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;-&amp;gt;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;fd_offset&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;+=&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;r&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;		 
+	&lt;span class=&quot;k&quot;&gt;return&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;r&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+
+&lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;h3 id=&quot;检查-4&quot;&gt;检查&lt;/h3&gt;
+
+&lt;p&gt;&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;file_read&lt;/code&gt;OK， 实现正确。&lt;/p&gt;
+
+&lt;hr /&gt;
+
+&lt;h2 id=&quot;todo6&quot;&gt;TODO6:&lt;/h2&gt;
+
+&lt;blockquote&gt;
+  &lt;p&gt;​     在fs/serv.c中实现serve-write，在lib/file.c中实现devfile-write&lt;/p&gt;
+&lt;/blockquote&gt;
+
+&lt;h3 id=&quot;serve_write&quot;&gt;serve_write()&lt;/h3&gt;
+
+&lt;p&gt;根据注释，serve_write()的功能应该是接收进程的id&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;envid&lt;/code&gt;和写请求的参数：&lt;/p&gt;
+
+&lt;div class=&quot;language-c highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;k&quot;&gt;struct&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Fsreq_write&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+		&lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;req_fileid&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+		&lt;span class=&quot;kt&quot;&gt;size_t&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;req_n&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+		&lt;span class=&quot;kt&quot;&gt;char&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;req_buf&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;PGSIZE&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;-&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;sizeof&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;+&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;sizeof&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;size_t&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;))];&lt;/span&gt;
+	&lt;span class=&quot;p&quot;&gt;}&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;write&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;将&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;req_buf&lt;/code&gt;中的&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;req_n&lt;/code&gt;个字节的内容写到对应文件的光标开始处。&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;req_buf&lt;/code&gt;的大小是&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;PGSIZE-(sizeof(int) + sizeof(size_t))&lt;/code&gt;， 这是为了保证&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;fsipc&lt;/code&gt;结构可以与页的大小对齐。&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;req_n&lt;/code&gt;的大小只能小于或等于&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;req_buf&lt;/code&gt;的固定大小。也就是一次请求不会超过一个块。&lt;/p&gt;
+
+&lt;p&gt;&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;serve_write&lt;/code&gt;可以通过&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;file_write()&lt;/code&gt;来实现，&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;file_write&lt;/code&gt;没有大小的限制，传给&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;file_write&lt;/code&gt;的count大小只要不要超过文件最大大小的范围即可。&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;file_write&lt;/code&gt;也已经提供了自动扩展文件大小的功能。根据函数的语义，&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;serve_write()&lt;/code&gt;的实现为：&lt;/p&gt;
+
+&lt;div class=&quot;language-c highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt;
+&lt;span class=&quot;nf&quot;&gt;serve_write&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;envid_t&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;envid&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;struct&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Fsreq_write&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;req&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+&lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+	&lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;r&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+	&lt;span class=&quot;k&quot;&gt;struct&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;OpenFile&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;o&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+
+	&lt;span class=&quot;k&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;debug&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+		&lt;span class=&quot;n&quot;&gt;cprintf&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;serve_write %08x %08x %08x&lt;/span&gt;&lt;span class=&quot;se&quot;&gt;\n&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;envid&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;req&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;-&amp;gt;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;req_fileid&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;req&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;-&amp;gt;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;req_n&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+
+	&lt;span class=&quot;c1&quot;&gt;// LAB 5: Your code here.&lt;/span&gt;
+	&lt;span class=&quot;k&quot;&gt;if&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;((&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;r&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;openfile_lookup&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;envid&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;req&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;-&amp;gt;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;req_fileid&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;amp;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;o&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;))&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;lt;&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+		&lt;span class=&quot;k&quot;&gt;return&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;r&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+	&lt;span class=&quot;k&quot;&gt;if&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;((&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;r&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;file_write&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;o&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;-&amp;gt;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;o_file&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;req&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;-&amp;gt;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;req_buf&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;req&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;-&amp;gt;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;req_n&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;o&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;-&amp;gt;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;o_fd&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;-&amp;gt;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;fd_offset&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;))&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;lt;&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+		&lt;span class=&quot;k&quot;&gt;return&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;r&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+	&lt;span class=&quot;n&quot;&gt;o&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;-&amp;gt;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;o_fd&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;-&amp;gt;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;fd_offset&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;+=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;r&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+	&lt;span class=&quot;k&quot;&gt;return&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;r&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt; 
+&lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
+
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;h3 id=&quot;devfile_write&quot;&gt;devfile_write()&lt;/h3&gt;
+
+&lt;p&gt;&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;devfile_write()&lt;/code&gt;处理用户程序发出的写请求，&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;req_n&lt;/code&gt;不能超过&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;req_buf&lt;/code&gt;大小的条件在这个函数中检查。它将文件的id，请求写字节数和缓冲区保存到&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;fsipcbuf&lt;/code&gt;的&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;write&lt;/code&gt;结构中，调用&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;fsipc()&lt;/code&gt;函数发送ipc请求，并共享&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;fsipcbuf&lt;/code&gt;页传递参数，把&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;fsipc&lt;/code&gt;的返回值直接返回给用户进程。&lt;/p&gt;
+
+&lt;p&gt;decfile_write的实现过程为：&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;判断请求的字节数&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;n&lt;/code&gt;是否比缓冲区大小（&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;PGSIZE - (sizeof(int) + sizeof(size_t)&lt;/code&gt;)大，如果超出，设置为缓冲区大小。&lt;/li&gt;
+  &lt;li&gt;将&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;fsipcbuf.write.req_fileid&lt;/code&gt;保存为用户进程请求的文件id。由于用户进程传给&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;devfile_write&lt;/code&gt;的是文件的描述符指针，所以通过&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;fd-&amp;gt;fd_file.id&lt;/code&gt;来获得该文件id。&lt;/li&gt;
+  &lt;li&gt;将&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;fsipcbuf.write.req_n&lt;/code&gt;设置为请求字节数n（不超过缓冲区大小）&lt;/li&gt;
+  &lt;li&gt;将用户传递进来的&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;buf&lt;/code&gt;中的前&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;n&lt;/code&gt;个字节，复制到&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;fsipcbuf.write.req_buf&lt;/code&gt;中，这个复制使用&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;memmove&lt;/code&gt;。&lt;/li&gt;
+  &lt;li&gt;调用&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;fsipc()&lt;/code&gt;发起请求并返回。 这个调用的类型为写操作&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;FSREQ_WRITE&lt;/code&gt;， 操作类型将由文件系统的&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;serve()&lt;/code&gt;接收，分发到对应的&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;serve_write&lt;/code&gt;函数。它不需要从文件系统那里共享页（因为不需要读取文件的内容），所以共享页虚拟地址为NULL。（&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;fsipc&lt;/code&gt;会在&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;ipc_send&lt;/code&gt;的时候与文件系统共享&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;fsipcbuf&lt;/code&gt;页）。&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;div class=&quot;language-c highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;k&quot;&gt;static&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;ssize_t&lt;/span&gt;
+&lt;span class=&quot;nf&quot;&gt;devfile_write&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;struct&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Fd&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;fd&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;const&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;void&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;buf&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;size_t&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;n&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+&lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+	&lt;span class=&quot;c1&quot;&gt;// Make an FSREQ_WRITE request to the file system server.  Be&lt;/span&gt;
+	&lt;span class=&quot;c1&quot;&gt;// careful: fsipcbuf.write.req_buf is only so large, but&lt;/span&gt;
+	&lt;span class=&quot;c1&quot;&gt;// remember that write is always allowed to write *fewer*&lt;/span&gt;
+	&lt;span class=&quot;c1&quot;&gt;// bytes than requested.&lt;/span&gt;
+	&lt;span class=&quot;c1&quot;&gt;// LAB 5: Your code here&lt;/span&gt;
+        &lt;span class=&quot;kt&quot;&gt;uint32_t&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;max_n&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;PGSIZE&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;-&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;k&quot;&gt;sizeof&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;+&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;sizeof&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;size_t&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;));&lt;/span&gt;
+        &lt;span class=&quot;n&quot;&gt;n&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;n&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;gt;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;max_n&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;?&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;max_n&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;:&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;n&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+
+    	&lt;span class=&quot;n&quot;&gt;fsipcbuf&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;write&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;req_fileid&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;fd&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;-&amp;gt;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;fd_file&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;id&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+    	&lt;span class=&quot;n&quot;&gt;fsipcbuf&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;write&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;req_n&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;n&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+    	&lt;span class=&quot;n&quot;&gt;memmove&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;fsipcbuf&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;write&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;req_buf&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;buf&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;n&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+    	&lt;span class=&quot;k&quot;&gt;return&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;fsipc&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;FSREQ_WRITE&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;nb&quot;&gt;NULL&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+&lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;h3 id=&quot;检查-5&quot;&gt;检查&lt;/h3&gt;
+
+&lt;p&gt;本次实验所有实现的函数检查都&lt;code class=&quot;language-plaintext highlighter-rouge&quot;&gt;OK&lt;/code&gt;.&lt;/p&gt;
+
+&lt;h2 id=&quot;总结&quot;&gt;总结&lt;/h2&gt;
+
+&lt;p&gt;文件系统负责文件的管理，它通过索引、链表、连续分配等方式组织文件，将文件内的逻辑地址映射到磁盘上的物理块地址；它通过bitmap、空闲块链表等数据结构维护磁盘上的空闲块，实现对磁盘空闲空间的管理；它直接与设备驱动程序（JOS）或者间接与设备驱动程序（UNIX系统中，设备驱动程序的操作封装为系统调用）交互，并通过逻辑地址到物理地址的转换，为用户提供了方便简单且统一的接口，以及一个直观的文件系统界面。&lt;/p&gt;
+
+&lt;p&gt;JOS的文件系统通过bitmap来管理空闲空间，当文件系统的大小为3GB时，bitmap的大小为24块。通过间接索引结构来组织文件，文件元数据中保存索引，来完成文件逻辑地址到磁盘物理地址的转换。文件系统中的每一个文件都有一个id标识，保存在文件描述符中，文件描述符表位于磁盘上，描述了文件的id、是否打开、设备以及偏移位置等。内核维护打开的文件描述符表，该结构可以通过打开的文件id找到对应的文件描述符，并保存了文件的元数据指针等变量。&lt;/p&gt;
+
+&lt;p&gt;文件块的读取是按需读取的，只有当一个块被用户请求时，文件系统引用该块对应的虚拟地址，会发生页错误，然后才将该块从磁盘上读取到内存。文件系统拥有IO权限，所以可以访问设备驱动程序，调用它的读和写函数。 文件的修改用了 延迟写回的策略， 修改暂时修改在内存中，只有在必要时，会将PTE_D标记为脏的内存页面写回到磁盘上。&lt;/p&gt;
+
+&lt;p&gt;JOS中的文件系统是一个特殊的用户进程，它将磁盘地址映射到自己的虚拟地址空间上进行方便的管理，并通过自定义页错误处理程序完成磁盘块到内存的数据转移。通过IPC进程间通信机制，使得用户进程可以调用定义在文件系统进程内的过程，从而为用户进程提供系统调用的接口。&lt;/p&gt;</content><author><name>Shutong Chen</name></author><category term="Lab Report" /><category term="OS" /><category term="JOS" /><summary type="html">Lab6：文件系统实现 JOS操作系统提供了一个简单的文件系统，它可以满足基本功能：创建，读取，写入，删除和以分层目录结构来组织文件。但并未提供文件所有权、用户权限的概念，不支持硬链接、符号链接、时间戳或特殊设备文件等，它提供的保护仅能捕获错误。</summary></entry><entry><title type="html">MIT 6.828 JOS 内存管理详解 操作系统实验5</title><link href="http://localhost:4000/lab%20report/2020/02/01/OS5memory/" rel="alternate" type="text/html" title="MIT 6.828 JOS 内存管理详解 操作系统实验5" /><published>2020-02-01T00:00:00+08:00</published><updated>2020-02-01T00:00:00+08:00</updated><id>http://localhost:4000/lab%20report/2020/02/01/OS5memory</id><content type="html" xml:base="http://localhost:4000/lab%20report/2020/02/01/OS5memory/">&lt;p&gt;本文详解JOS操作系统虚拟内存的结构，以及内存管理单元的结构与实现。
 在这次实验中，将探索以下问题：&lt;/p&gt;
 
 &lt;ul&gt;

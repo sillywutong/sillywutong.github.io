@@ -1,0 +1,2443 @@
+
+<!doctype html>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<html class="theme-next muse use-motion" lang="en">
+<head>
+  <meta charset="UTF-8"/>
+<meta http-equiv="X-UA-Compatible" content="IE=edge" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1"/>
+
+
+
+
+
+
+
+
+
+<meta http-equiv="Cache-Control" content="no-transform" />
+<meta http-equiv="Cache-Control" content="no-siteapp" />
+
+
+
+  <meta name="google-site-verification" content="53CizgIXyw15rXsEpgcXzCitz50ivr8WWTpupPlMnRo" />
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+  <link href="/assets/lib/fancybox/source/jquery.fancybox.css?v=2.1.5" rel="stylesheet" type="text/css" />
+
+
+
+
+  
+  
+  
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+    
+    
+    <link href="//fonts.googleapis.com/css?family=Lato:300,300italic,400,400italic,700,700italic&subset=latin,latin-ext" rel="stylesheet" type="text/css">
+  
+
+
+
+
+
+
+<link href="/assets/lib/font-awesome/css/font-awesome.min.css?v=4.6.2" rel="stylesheet" type="text/css" />
+
+<link href="/assets/css/main.css?v=5.1.1" rel="stylesheet" type="text/css" />
+
+
+  <meta name="keywords" content="OS,JOS," />
+
+
+
+
+
+  <link rel="alternate" href="/atom.xml" title="Shutong Chen's Blog" type="application/atom+xml" />
+
+
+
+
+  <link rel="shortcut icon" type="image/x-icon" href="/assets/favicon.ico?v=5.1.1" />
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<meta name="description" content="Lab6：文件系统实现 JOS操作系统提供了一个简单的文件系统，它可以满足基本功能：创建，读取，写入，删除和以分层目录结构来组织文件。但并未提供文件所有权、用户权限的概念，不支持硬链接、符号链接、时间戳或特殊设备文件等，它提供的保护仅能捕获错误。">
+<meta name="keywords" content="OS, JOS">
+<meta property="og:type" content="article">
+<meta property="og:title" content="MIT 6.828 JOS操作系统实验6-文件系统实现详解">
+<meta property="og:url" content="http://localhost:4000/lab%20report/2020/02/03/OS6filesystem/">
+<meta property="og:site_name" content="Shutong Chen's Blog">
+<meta property="og:description" content="Lab6：文件系统实现 JOS操作系统提供了一个简单的文件系统，它可以满足基本功能：创建，读取，写入，删除和以分层目录结构来组织文件。但并未提供文件所有权、用户权限的概念，不支持硬链接、符号链接、时间戳或特殊设备文件等，它提供的保护仅能捕获错误。">
+<meta property="og:locale" content="en">
+<meta property="og:image" content="https://user-gold-cdn.xitu.io/2019/5/27/16af9c99190c78db?imageView2/0/w/1280/h/960/format/webp/ignore-error/1">
+<meta property="og:image" content="https://pdos.csail.mit.edu/6.828/2018/labs/lab5/disk.png">
+<meta property="og:image" content="https://pdos.csail.mit.edu/6.828/2018/labs/lab5/file.png">
+<meta property="og:image" content="C:\\Users\\CST\\AppData\\Roaming\\Typora\\typora-user-images\\image-20191212212137127.png">
+<meta property="og:image" content="http://localhost:4000/assets/images/report/OS6.png">
+<meta property="og:image" content="https://blog-1253119293.cos.ap-beijing.myqcloud.com/6.828/lab5/lab5_4_%E6%96%87%E4%BB%B6%E7%B3%BB%E7%BB%9F%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84.png">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="MIT 6.828 JOS操作系统实验6-文件系统实现详解">
+<meta name="twitter:description" content="Lab6：文件系统实现 JOS操作系统提供了一个简单的文件系统，它可以满足基本功能：创建，读取，写入，删除和以分层目录结构来组织文件。但并未提供文件所有权、用户权限的概念，不支持硬链接、符号链接、时间戳或特殊设备文件等，它提供的保护仅能捕获错误。">
+<meta name="twitter:image" content="https://user-gold-cdn.xitu.io/2019/5/27/16af9c99190c78db?imageView2/0/w/1280/h/960/format/webp/ignore-error/1">
+
+
+<script type="text/javascript" id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '',
+    scheme: 'Muse',
+    sidebar: {"position":"right","display":"post","offset":12,"offset_float":0,"b2t":false,"scrollpercent":false},
+    fancybox: true,
+    motion: true,
+    duoshuo: {
+      userId: '0',
+      author: 'Author'
+    },
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    }
+  };
+</script>
+
+
+
+  <link rel="canonical" href="http://localhost:4000/"/>
+
+
+
+
+
+  <title>MIT 6.828 JOS操作系统实验6-文件系统实现详解 | Shutong Chen's Blog</title>
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" lang="en">
+
+  
+  
+
+  <div class="container sidebar-position-right page-post-detail ">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"> <div class="site-brand-wrapper">
+  <div class="site-meta ">
+    
+
+    <div class="custom-logo-site-title">
+      <a href="/"  class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">Shutong Chen's Blog</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+      
+        <h1 class="site-subtitle" itemprop="description"></h1>
+      
+  </div>
+
+  <div class="site-nav-toggle">
+    <button>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+<nav class="site-nav">
+  
+
+  
+    <ul id="menu" class="menu">
+      
+        
+        
+        
+        <li class="menu-item menu-item-home">
+          <a href="/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-home"></i> <br />
+            
+            Home
+          </a>
+        </li>
+      
+        
+        
+        
+        <li class="menu-item menu-item-categories">
+          <a href="/categories/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-th"></i> <br />
+            
+            Categories
+          </a>
+        </li>
+      
+        
+        
+        
+        <li class="menu-item menu-item-archives">
+          <a href="/archives/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-archive"></i> <br />
+            
+            Archives
+          </a>
+        </li>
+      
+        
+        
+        
+        <li class="menu-item menu-item-tags">
+          <a href="/tags/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-tags"></i> <br />
+            
+            Tags
+          </a>
+        </li>
+      
+        
+        
+        
+        <li class="menu-item menu-item-sitemap">
+          <a href="/sitemap.xml" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-sitemap"></i> <br />
+            
+            Sitemap
+          </a>
+        </li>
+      
+
+      
+        <li class="menu-item menu-item-search">
+          
+            <a href="javascript:;" class="popup-trigger">
+          
+            
+              <i class="menu-item-icon fa fa-search fa-fw"></i> <br />
+            
+            Search
+          </a>
+        </li>
+      
+    </ul>
+  
+
+  
+    <div class="site-search">
+      
+  <div class="popup search-popup local-search-popup">
+  <div class="local-search-header clearfix">
+    <span class="search-icon">
+      <i class="fa fa-search"></i>
+    </span>
+    <span class="popup-btn-close">
+      <i class="fa fa-times-circle"></i>
+    </span>
+    <div class="local-search-input-wrapper">
+      <input autocomplete="off"
+             placeholder="Searching..." spellcheck="false"
+             type="text" id="local-search-input">
+    </div>
+  </div>
+  <div id="local-search-result"></div>
+</div>
+
+
+
+    </div>
+  
+</nav>
+
+
+
+ </div>
+    </header>
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+<div id="posts" class="posts-expand">
+  
+  
+
+  
+
+  
+  
+  
+
+  <article class="post post-type- " itemscope itemtype="http://schema.org/Article">
+    <link itemprop="mainEntityOfPage" href="http://localhost:4000/lab%20report/2020/02/03/OS6filesystem/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="Shutong Chen">
+      <meta itemprop="description" content="">
+      <meta itemprop="image" content="/assets/images/avatar.jpg">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Shutong Chen's Blog">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h2 class="post-title" itemprop="name headline">
+          
+          
+            MIT 6.828 JOS操作系统实验6-文件系统实现详解
+          
+        </h2>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">Posted on</span>
+              
+              <time title="Post created" itemprop="dateCreated datePublished" datetime="2020-02-03T00:00:00+08:00">
+                2020-02-03
+              </time>
+            
+
+            
+              <span class="post-meta-divider">|</span>
+            
+
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-check-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">Post modified</span>
+              
+              <time title="Post modified" itemprop="dateModified" datetime="">
+                
+              </time>
+            
+          </span>
+
+          
+            <span class="post-category" >
+            
+              <span class="post-meta-divider">|</span>
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">In</span>
+              
+              
+                
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/category/#/Lab%20Report" itemprop="url" rel="index">
+                    <span itemprop="name">Lab Report</span>
+                  </a>
+                </span>
+
+                
+                
+              
+            </span>
+          
+
+          
+            
+              <span class="post-comments-count">
+                <span class="post-meta-divider">|</span>
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-comment-o"></i>
+                </span>
+                <a href="/lab%20report/2020/02/03/OS6filesystem/#comments" itemprop="discussionUrl">
+                  <span class="post-comments-count wf-count-unit" wf-page-url="http://localhost:4000/lab%20report/2020/02/03/OS6filesystem/" itemprop="commentCount"></span>
+                </a>
+              </span>
+            
+          
+
+          
+          
+             <span id="/lab%20report/2020/02/03/OS6filesystem/" class="leancloud_visitors" data-flag-title="MIT 6.828 JOS操作系统实验6-文件系统实现详解">
+               <span class="post-meta-divider">|</span>
+               <span class="post-meta-item-icon">
+                 <i class="fa fa-eye"></i>
+               </span>
+               
+                 <span class="post-meta-item-text">Visitors </span>
+               
+                 <span class="leancloud-visitors-count"></span>
+             </span>
+          
+
+          
+
+          
+
+          
+            
+                <div class="post-description">
+                    
+                </div>
+            
+          
+
+        </div>
+      </header>
+    
+
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        
+  
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  <h1 id="lab6文件系统实现">Lab6：文件系统实现</h1>
+
+<p>JOS操作系统提供了一个简单的文件系统，它可以满足基本功能：创建，读取，写入，删除和以分层目录结构来组织文件。但并未提供文件所有权、用户权限的概念，不支持硬链接、符号链接、时间戳或特殊设备文件等，它提供的保护仅能捕获错误。</p>
+
+<!--more-->
+<h2 id="磁盘上的文件系统结构">磁盘上的文件系统结构</h2>
+
+<p>文件储存在磁盘上，磁盘最小的存储单位为扇区，JOS采用的扇区大小为512字节。为了提高数据交换的效率，与磁盘的一次数据交换以块为单位，不同的操作系统定义不同的块大小，具体而言，更大地块管理的开销越小，但是可能出现的内部碎片越多。JOS采用的块大小为4096bytes，与内存的页大小相同。块和扇区的大小定义在<code class="language-plaintext highlighter-rouge">inc/fs.h</code>和<code class="language-plaintext highlighter-rouge">fs/fs.h</code>中：</p>
+
+<div class="language-c highlighter-rouge"><div class="highlight"><table style="margin: 0px"><tbody><tr><td class="gutter"><pre>1<br/>2<br/>3<br/>4<br/>5</pre></td><td class="code"><pre class="highlight"><code><span class="cp">#define BLKSIZE		PGSIZE
+#define BLKBITSIZE	(BLKSIZE * 8)
+</span>
+<span class="cp">#define SECTSIZE	512			// bytes per disk sector
+#define BLKSECTS	(BLKSIZE / SECTSIZE)	// sectors per block
+</span></code></pre></td></tr></tbody></table></div></div>
+
+<p>大多数UNIX文件系统采用索引结构来组织文件的块，为每一个文件分配一个<strong>索引节点（inode）</strong>，索引节点上保存了文件的重要元数据，包括文件名称，大小，创建者，创建日期，权限，以及文件的数据块存放的物理位置。<strong>inode号码</strong>而非文件名唯一地标识了系统中的一个文件。</p>
+
+<p>一般情况下，文件全名与inode号码是意义对应的关系，但UNIX系统允许硬链接，也就是多个文件名指向同一个inode，可以用不同的文件名访问同一个文件，不同的文件名没有依赖关系。当删除一个文件名时，不会影响到其他文件名对该inode的访问，只有在链接数为0的时候，该inode才会被真正释放。由于JOS不实现硬链接或者符号链接，因此目录之间是没办法共享文件的，所以不需要采用inode结构，直接将文件的元数据存放在目录条目中。</p>
+
+<h3 id="超级块">超级块</h3>
+
+<p>在一个UNIX系统中，一般会存在许多种文件系统，例如ext4，NFS, tmpfs等等，他们有着自己的组织方法，权限设置，文件数据块大小定义等，因此文件的创建、打开、删除等具体操作都是不同的。为了让用户透明地处理文件，操作系统引入了虚拟文件系统，封装不同文件系统的文件操作，为用户提供统一的文件操作接口。用户访问文件系统的过程：</p>
+
+<p><img src="https://user-gold-cdn.xitu.io/2019/5/27/16af9c99190c78db?imageView2/0/w/1280/h/960/format/webp/ignore-error/1" alt="How userspace accesses various types of filesystems" /></p>
+
+<p>这样，不同的文件系统必须提供描述该系统的元数据，例如块大小，总磁盘大小，根目录，块设备驱动程序描述符指针，上次安装文件系统的时间，上次检查文件系统错误的时间等等，这些元数据存放在<strong>超级块</strong> 中。超级块存放在磁盘的最开始或者结尾，并且为了可靠性会在不同区域中备份。</p>
+
+<p>JOS的超级块数据结构定义在<code class="language-plaintext highlighter-rouge">inc\fs.h</code>中：</p>
+
+<div class="language-c highlighter-rouge"><div class="highlight"><table style="margin: 0px"><tbody><tr><td class="gutter"><pre>1<br/>2<br/>3<br/>4<br/>5</pre></td><td class="code"><pre class="highlight"><code><span class="k">struct</span> <span class="n">Super</span> <span class="p">{</span>
+	<span class="kt">uint32_t</span> <span class="n">s_magic</span><span class="p">;</span>		<span class="c1">// Magic number: FS_MAGIC</span>
+	<span class="kt">uint32_t</span> <span class="n">s_nblocks</span><span class="p">;</span>		<span class="c1">// Total number of blocks on disk</span>
+	<span class="k">struct</span> <span class="n">File</span> <span class="n">s_root</span><span class="p">;</span>		<span class="c1">// Root directory node</span>
+<span class="p">};</span>
+</code></pre></td></tr></tbody></table></div></div>
+
+<p>包括文件系统魔术字、总共有多少块和根目录节点。</p>
+
+<p><img src="https://pdos.csail.mit.edu/6.828/2018/labs/lab5/disk.png" alt="磁盘布局" /></p>
+
+<h3 id="文件元数据">文件元数据</h3>
+
+<p><code class="language-plaintext highlighter-rouge">struct File</code>描述了文件的元数据：</p>
+
+<div class="language-c highlighter-rouge"><div class="highlight"><table style="margin: 0px"><tbody><tr><td class="gutter"><pre>1<br/>2<br/>3<br/>4<br/>5<br/>6<br/>7<br/>8<br/>9<br/>10<br/>11<br/>12<br/>13<br/>14</pre></td><td class="code"><pre class="highlight"><code><span class="k">struct</span> <span class="n">File</span> <span class="p">{</span>
+	<span class="kt">char</span> <span class="n">f_name</span><span class="p">[</span><span class="n">MAXNAMELEN</span><span class="p">];</span>	<span class="c1">// filename</span>
+	<span class="kt">off_t</span> <span class="n">f_size</span><span class="p">;</span>			<span class="c1">// file size in bytes</span>
+	<span class="kt">uint32_t</span> <span class="n">f_type</span><span class="p">;</span>		<span class="c1">// file type</span>
+
+	<span class="c1">// Block pointers.</span>
+	<span class="c1">// A block is allocated iff its value is != 0.</span>
+	<span class="kt">uint32_t</span> <span class="n">f_direct</span><span class="p">[</span><span class="n">NDIRECT</span><span class="p">];</span>	<span class="c1">// direct blocks</span>
+	<span class="kt">uint32_t</span> <span class="n">f_indirect</span><span class="p">;</span>		<span class="c1">// indirect block</span>
+
+	<span class="c1">// Pad out to 256 bytes; must do arithmetic in case we're compiling</span>
+	<span class="c1">// fsformat on a 64-bit machine.</span>
+	<span class="kt">uint8_t</span> <span class="n">f_pad</span><span class="p">[</span><span class="mi">256</span> <span class="o">-</span> <span class="n">MAXNAMELEN</span> <span class="o">-</span> <span class="mi">8</span> <span class="o">-</span> <span class="mi">4</span><span class="o">*</span><span class="n">NDIRECT</span> <span class="o">-</span> <span class="mi">4</span><span class="p">];</span>
+<span class="p">}</span> <span class="n">__attribute__</span><span class="p">((</span><span class="n">packed</span><span class="p">));</span>	<span class="c1">// required only on some 64-bit machines</span>
+</code></pre></td></tr></tbody></table></div></div>
+
+<ul>
+  <li>f_name: 文件名，<code class="language-plaintext highlighter-rouge">MAXNAMELEN</code>定义为128字节。</li>
+  <li>f_size: 以字节为单位的文件大小</li>
+  <li>f_type： 文件类型（用来区分是普通文件还是目录）</li>
+  <li>f_direct:  直接索引块，NDIRECT被定义为10。</li>
+  <li>f_indirect: 间接索引块，只有1块。</li>
+  <li>f_pad:  这是元数据结构的padding，填充使得<code class="language-plaintext highlighter-rouge">File</code>结构的大小为256字节。</li>
+</ul>
+
+<p>元数据存储在磁盘上的目录条目中。文件数据块使用索引来组织，每一条索引存放着对应文件数据块的物理地址（块号）。直接索引块有10个，意味着大小不超过10 *4096=40KB的文件可以直接映射。间接索引块只有一个，可以存放4096/4 = 1024个额外的直接索引块，因此可以提供1024*4096 =4MB的空间。</p>
+
+<p><strong>文件系统允许的文件大小为4MB+40KB，1034块</strong>。</p>
+
+<p><img src="https://pdos.csail.mit.edu/6.828/2018/labs/lab5/file.png" alt="档案结构" /></p>
+
+<h3 id="目录文件">目录文件</h3>
+
+<p>目录实际上也是一个文件，只是其中存放的是每个文件的元数据（<code class="language-plaintext highlighter-rouge">File</code>结构体），描述其中的文件和子目录。</p>
+
+<p><strong>根目录的元数据保存在超级块中</strong>。根目录文件存放了一系列子目录和文件的<code class="language-plaintext highlighter-rouge">File</code>元数据，虚拟文件系统可以根据超级块找到根目录的元数据，从而访问到根目录文件的每一块，进而再通过元数据找到具体文件。</p>
+
+<h3 id="磁盘空间管理">磁盘空间管理</h3>
+
+<p>如上面的结构图所示，JOS用bitmap来管理磁盘的空闲块。在创建文件或文件内容需要扩展时，JOS根据bitmap找到空闲的磁盘块并分配给它；当文件空间释放时，文件系统将bitmap中对应的块置为1，表示该块已经空闲。Bitmap的管理相对于空闲块链表来说更加高效，但是也会占据较大空间。因为文件系统最多只能管理3GB的磁盘，则最多有786，432块，需要98，304字节的bitmap，即24个bitmap块。</p>
+
+<h3 id="访问磁盘">访问磁盘</h3>
+
+<p>文件系统的实现需要访问磁盘。一般的UNIX系统中，因为有许多异质的IO设备，因此要将磁盘驱动程序安装为内核的一部分，并提供系统调用使得文件系统可以访问磁盘。在JOS中，为了方便，直接将磁盘驱动程序实现在文件系统的用户级环境中，使得文件系统可以直接访问磁盘。</p>
+
+<p>JOS中程序与磁盘数据交换的方式是轮询， 即基于编程IO的磁盘访问。</p>
+
+<p>本次实验中，我们要实现与探究的问题有：</p>
+
+<ol>
+  <li>文件系统中，文件逻辑块是如何映射到物理块上的</li>
+  <li>文件创建或扩展时，如何分配磁盘块</li>
+  <li>需要访问文件时，如何将文件数据从磁盘上读取到内存缓冲区中</li>
+  <li>如何把内存中的文件数据写回到磁盘</li>
+  <li>如何为用户提供读、写、创建、删除的接口</li>
+</ol>
+
+<h2 id="todo1">TODO1:</h2>
+
+<blockquote>
+  <p>i386_init通过将ENV_TYPE_FS类型传递给环境创建函数env_create来标识文件系统环境。在env.c中修改env_create，使其授予文件系统环境I/O权限，但不要将该权限授予其他环境。</p>
+</blockquote>
+
+<p>JOS中，环境实际上与用户进程类似， 一个环境包括环境的状态（RUNNING \RUNNABLE等），环境的地址空间，环境的父级id，中断帧等，与进程相似。可以通过系统调用fork来创建用户环境，当发生中断时，保存用户环境的运行状态到中断帧中，然后进入内核处理中断。环境描述还包括环境的类型，只有两种——ENV_TYPE_USER和ENV_TYPE_FS，前者为普通的用户进程，后者为文件系统环境。</p>
+
+<p>系统开启时，在<code class="language-plaintext highlighter-rouge">init.c</code>的<code class="language-plaintext highlighter-rouge">i386_init()</code>中会创建文件系统进程：</p>
+
+<div class="language-c highlighter-rouge"><div class="highlight"><table style="margin: 0px"><tbody><tr><td class="gutter"><pre>1<br/>2<br/>3<br/>4<br/>5<br/>6</pre></td><td class="code"><pre class="highlight"><code>	<span class="p">...</span>
+	<span class="n">boot_aps</span><span class="p">();</span>		<span class="c1">//将初始化代码拷贝到MPENTRY_PADDR处，然后依次启动所有AP</span>
+
+	<span class="c1">// Start fs.</span>
+	<span class="n">ENV_CREATE</span><span class="p">(</span><span class="n">fs_fs</span><span class="p">,</span> <span class="n">ENV_TYPE_FS</span><span class="p">);</span>
+
+</code></pre></td></tr></tbody></table></div></div>
+
+<p>x86处理器使用EFLAGS寄存器中的IOPL位来确定是否允许保护模式代码执行特殊的设备I / O指令，例如IN和OUT指令。JOS的磁盘寄存器位于x86的IO空间中，因此我们需要赋予文件系统环境IO权限，但不允许其他任何环境，包括内核访问磁盘。</p>
+
+<p>一个进程只能使用<code class="language-plaintext highlighter-rouge">POPF</code>指令来更改IOPL，但是这条指令的执行也需要内核级特权，文件系统环境并不具有内核级特权。所以，需要在运行于内核模式的<code class="language-plaintext highlighter-rouge">env_create</code>中，判断环境类型是否为文件系统，然后手动修改该环境下的EFLAGS寄存器。代码为：</p>
+
+<div class="language-c highlighter-rouge"><div class="highlight"><table style="margin: 0px"><tbody><tr><td class="gutter"><pre>1<br/>2<br/>3<br/>4<br/>5<br/>6<br/>7<br/>8<br/>9<br/>10<br/>11<br/>12<br/>13<br/>14<br/>15<br/>16<br/>17<br/>18<br/>19</pre></td><td class="code"><pre class="highlight"><code><span class="kt">void</span>
+<span class="nf">env_create</span><span class="p">(</span><span class="kt">uint8_t</span> <span class="o">*</span><span class="n">binary</span><span class="p">,</span> <span class="k">enum</span> <span class="n">EnvType</span> <span class="n">type</span><span class="p">)</span>
+<span class="p">{</span>
+	<span class="c1">// LAB 3: Your code here.</span>
+	<span class="k">struct</span> <span class="n">Env</span> <span class="o">*</span><span class="n">e</span><span class="p">;</span>
+	<span class="kt">int</span> <span class="n">r</span><span class="p">;</span>
+	<span class="k">if</span> <span class="p">((</span><span class="n">r</span> <span class="o">=</span> <span class="n">env_alloc</span><span class="p">(</span><span class="o">&amp;</span><span class="n">e</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">))</span> <span class="p">{</span>
+		<span class="n">panic</span><span class="p">(</span><span class="s">"create env failed</span><span class="se">\n</span><span class="s">"</span><span class="p">);</span>
+	<span class="p">}</span>
+
+	<span class="c1">// If this is the file server (type == ENV_TYPE_FS) give it I/O privileges.</span>
+	<span class="c1">// LAB 5: Your code here.</span>
+	<span class="k">if</span><span class="p">(</span><span class="n">type</span> <span class="o">==</span> <span class="n">ENV_TYPE_FS</span><span class="p">)</span>
+		<span class="n">e</span><span class="o">-&gt;</span><span class="n">env_tf</span><span class="p">.</span><span class="n">tf_eflags</span> <span class="o">|=</span> <span class="n">FL_IOPL_MASK</span><span class="p">;</span>
+
+	<span class="n">load_icode</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="n">binary</span><span class="p">);</span>
+	<span class="n">e</span><span class="o">-&gt;</span><span class="n">env_type</span> <span class="o">=</span> <span class="n">type</span><span class="p">;</span>
+<span class="p">}</span>
+
+</code></pre></td></tr></tbody></table></div></div>
+
+<p>其中，FL_IOPL_MASK在<code class="language-plaintext highlighter-rouge">mmu.h</code>中定义。eflags寄存器中的第12和13位为IO特权级别位（IOPL），从0-3分别对应4种模式：内核、驱动程序、驱动程序、应用程序。当前的进程只有当权限位&lt;=IOPL时，才可以获得访问IO的权限， 否则就会引发保护异常。</p>
+
+<p><code class="language-plaintext highlighter-rouge">e-&gt;env_tf.tf_flags|=FL_IOPL_MASK</code>将EFLAGS寄存器置为0x3000，即IOPL=3，也就是该进程的用户模式可访问IO, 于是文件系统便获得IO权限，而对于其他用户环境，eflags中的IOPL位仍为0. <strong>因为每一个进程都有自己独立的标志寄存器，所以用户环境与文件系统环境具有不同的IOPL。</strong></p>
+
+<blockquote>
+  <p>Env 数据结构为环境描述符，类似于PCB，在<code class="language-plaintext highlighter-rouge">inc\env.h</code>中定义：</p>
+
+  <div class="language-c highlighter-rouge"><div class="highlight"><table style="margin: 0px"><tbody><tr><td class="gutter"><pre>1<br/>2<br/>3<br/>4<br/>5<br/>6<br/>7<br/>8<br/>9<br/>10<br/>11<br/>12<br/>13<br/>14<br/>15<br/>16<br/>17<br/>18<br/>19<br/>20<br/>21<br/>22<br/>23</pre></td><td class="code"><pre class="highlight"><code><span class="k">struct</span> <span class="n">Env</span> <span class="p">{</span>
+	<span class="k">struct</span> <span class="n">Trapframe</span> <span class="n">env_tf</span><span class="p">;</span>	<span class="c1">// Saved registers</span>
+	<span class="k">struct</span> <span class="n">Env</span> <span class="o">*</span><span class="n">env_link</span><span class="p">;</span>		<span class="c1">// Next free Env</span>
+	<span class="n">envid_t</span> <span class="n">env_id</span><span class="p">;</span>			<span class="c1">// Unique environment identifier</span>
+	<span class="n">envid_t</span> <span class="n">env_parent_id</span><span class="p">;</span>		<span class="c1">// env_id of this env's parent</span>
+	<span class="k">enum</span> <span class="n">EnvType</span> <span class="n">env_type</span><span class="p">;</span>		<span class="c1">// Indicates special system environments</span>
+	<span class="kt">unsigned</span> <span class="n">env_status</span><span class="p">;</span>		<span class="c1">// Status of the environment</span>
+	<span class="kt">uint32_t</span> <span class="n">env_runs</span><span class="p">;</span>		<span class="c1">// Number of times environment has run</span>
+	<span class="kt">int</span> <span class="n">env_cpunum</span><span class="p">;</span>			<span class="c1">// The CPU that the env is running on</span>
+
+	<span class="c1">// Address space</span>
+	<span class="n">pde_t</span> <span class="o">*</span><span class="n">env_pgdir</span><span class="p">;</span>		<span class="c1">// Kernel virtual address of page dir</span>
+
+	<span class="c1">// Exception handling</span>
+	<span class="kt">void</span> <span class="o">*</span><span class="n">env_pgfault_upcall</span><span class="p">;</span>	<span class="c1">// Page fault upcall entry point</span>
+
+	<span class="c1">// Lab 4 IPC</span>
+	<span class="n">bool</span> <span class="n">env_ipc_recving</span><span class="p">;</span>		<span class="c1">// Env is blocked receiving</span>
+	<span class="kt">void</span> <span class="o">*</span><span class="n">env_ipc_dstva</span><span class="p">;</span>		<span class="c1">// VA at which to map received page</span>
+	<span class="kt">uint32_t</span> <span class="n">env_ipc_value</span><span class="p">;</span>		<span class="c1">// Data value sent to us</span>
+	<span class="n">envid_t</span> <span class="n">env_ipc_from</span><span class="p">;</span>		<span class="c1">// envid of the sender</span>
+	<span class="kt">int</span> <span class="n">env_ipc_perm</span><span class="p">;</span>		<span class="c1">// Perm of page mapping received</span>
+<span class="p">};</span>
+</code></pre></td></tr></tbody></table></div>  </div>
+
+  <p>其中 <code class="language-plaintext highlighter-rouge">env_tf</code>为中断帧，中断帧数据结构<code class="language-plaintext highlighter-rouge">Trapframe</code>与之前的实验类似，<code class="language-plaintext highlighter-rouge">tf_eflags</code>为进程的EFLAGS寄存器。</p>
+
+</blockquote>
+
+<p>###问题：</p>
+
+<p><strong>在环境切换的时候是否需要其他操作来确保IOPL正确设置和还原？</strong></p>
+
+<p>不需要。因为在环境切换的时候，操作系统会保存旧的中断帧在内核栈上，其中就包括了EFLAGS寄存器。在环境切换回来的时候，会从内核栈上加载中断帧，恢复原来的EFLAGS寄存器值。</p>
+
+<h3 id="检查">检查</h3>
+
+<p>运行<code class="language-plaintext highlighter-rouge">./grade-lab5</code>进行检查：</p>
+
+<p><img src="C:\Users\CST\AppData\Roaming\Typora\typora-user-images\image-20191212212137127.png" alt="image-20191212212137127" /></p>
+
+<p><code class="language-plaintext highlighter-rouge">fs i/o</code>结果为OK, 说明文件系统已有IO权限。</p>
+
+<hr />
+
+<h2 id="todo2">TODO2:</h2>
+
+<blockquote>
+  <p>​    在fs / bc.c中实现bc_pgfault和flush_block函数。 bc_pgfault是一个页面错误处理程序，bc_pgfault的工作是从磁盘加载页面，flush_block函数应将一个块写出到磁盘。</p>
+</blockquote>
+
+<p>为了解决磁盘与CPU处理数据速度的不同与数据大小的不同，通常要在两者之间加入缓冲区。缓冲区实际上是内存上的一块特定区域。JOS的缓冲区只有一个块， 代码在<code class="language-plaintext highlighter-rouge">fs\bc.c</code>中。</p>
+
+<h3 id="bc_pgfault">bc_pgfault()</h3>
+
+<p>文件系统在JOS中本质上是一个进程，它如何提供其他进程访问文件的接口呢？</p>
+
+<p>内核将磁盘的物理地址映射到文件系统进程的高虚拟地址空间。在<code class="language-plaintext highlighter-rouge">fs.h</code>中，磁盘映射的虚拟地址和磁盘大小的定义是：</p>
+
+<div class="language-c highlighter-rouge"><div class="highlight"><table style="margin: 0px"><tbody><tr><td class="gutter"><pre>1<br/>2<br/>3<br/>4<br/>5<br/>6</pre></td><td class="code"><pre class="highlight"><code><span class="cm">/* Disk block n, when in memory, is mapped into the file system
+ * server's address space at DISKMAP + (n*BLKSIZE). */</span>
+<span class="cp">#define DISKMAP		0x10000000
+</span>
+<span class="cm">/* Maximum disk size we can handle (3GB) */</span>
+<span class="cp">#define DISKSIZE	0xC0000000
+</span></code></pre></td></tr></tbody></table></div></div>
+
+<p>意味着该文件系统只能处理最多3GB的磁盘。磁盘地址被映射到文件系统进程的高地址3GB区域，从0x10000000开始。这样，磁盘地址映射到文件系统虚拟地址，而虚拟地址又在被访问时映射到内存的物理地址，当其他进程向文件系统请求读取文件时，文件系统访问虚拟地址空间来读取相应的块。</p>
+
+<p>对于文件系统，磁盘块的读取和普通进程访问代码和数据时按需调页的策略类似，是按需加载的。只有当某个磁盘块被需要时，才要将其加载进内存。当文件系统进程访问某个虚拟地址时，如果对应的磁盘块还不在内存中，就会发生缺页故障，这时应该将虚拟地址对应的磁盘块读入内存，这与普通用户的页错误处理不同，需要自定义页错误处理程序。<code class="language-plaintext highlighter-rouge">bc_pgfault</code>函数将磁盘块读取到对应的内存，才可以重新执行该访问。</p>
+
+<blockquote>
+  <p>正常情况下，用户环境运行在JOS分配给用户的正常栈上。但当用户模式下发生页错误时，JOS内核将从正常用户栈切换到用户异常栈，来运行用户级页面错误处理程序。在异常栈上，有<code class="language-plaintext highlighter-rouge">UTrapframe</code>结构体，为<strong>异常中断帧</strong>，它保存了引起页错误的虚拟地址。</p>
+
+  <p>处理用户态页面异常的过程是：</p>
+
+  <ol>
+    <li>发生异常之前，用户已经向内核注册自定义的页面处理程序在env_pgfault_upcall中。</li>
+    <li>用户态发生页错误，陷入内核态，保存正常的中断帧Trapframe，切换到内核栈，进入trap（）</li>
+    <li>根据中断号发现是缺页故障，调用<code class="language-plaintext highlighter-rouge">page_fault_handler</code>进行处理</li>
+    <li>检测trapframe上保存的cs寄存器，发现是用户态</li>
+    <li>判断是否有用户自定义页面异常处理程序，若没有则销毁进程。</li>
+    <li>如果有，压入Utrapframe，并设置tf-&gt;tf_eip即下一条指令为用户自定义的缺页处理程序，返回用户态</li>
+    <li>用户态会从自定义处理程序开始执行。</li>
+  </ol>
+
+  <p><strong>文件系统进程自定义了它的缺页处理程序为bc_pgfault</strong></p>
+
+</blockquote>
+
+<p><code class="language-plaintext highlighter-rouge">bc_pgfault</code>首先对访问的虚拟地址进行了合法性检查：</p>
+
+<div class="language-c highlighter-rouge"><div class="highlight"><table style="margin: 0px"><tbody><tr><td class="gutter"><pre>1<br/>2<br/>3<br/>4<br/>5<br/>6<br/>7<br/>8<br/>9<br/>10<br/>11<br/>12<br/>13<br/>14<br/>15<br/>16</pre></td><td class="code"><pre class="highlight"><code><span class="k">static</span> <span class="kt">void</span>
+<span class="nf">bc_pgfault</span><span class="p">(</span><span class="k">struct</span> <span class="n">UTrapframe</span> <span class="o">*</span><span class="n">utf</span><span class="p">)</span>
+<span class="p">{</span>
+	<span class="kt">void</span> <span class="o">*</span><span class="n">addr</span> <span class="o">=</span> <span class="p">(</span><span class="kt">void</span> <span class="o">*</span><span class="p">)</span> <span class="n">utf</span><span class="o">-&gt;</span><span class="n">utf_fault_va</span><span class="p">;</span>
+	<span class="kt">uint32_t</span> <span class="n">blockno</span> <span class="o">=</span> <span class="p">((</span><span class="kt">uint32_t</span><span class="p">)</span><span class="n">addr</span> <span class="o">-</span> <span class="n">DISKMAP</span><span class="p">)</span> <span class="o">/</span> <span class="n">BLKSIZE</span><span class="p">;</span>
+	<span class="kt">int</span> <span class="n">r</span><span class="p">;</span>
+
+	<span class="c1">// Check that the fault was within the block cache region</span>
+	<span class="k">if</span> <span class="p">(</span><span class="n">addr</span> <span class="o">&lt;</span> <span class="p">(</span><span class="kt">void</span><span class="o">*</span><span class="p">)</span><span class="n">DISKMAP</span> <span class="o">||</span> <span class="n">addr</span> <span class="o">&gt;=</span> <span class="p">(</span><span class="kt">void</span><span class="o">*</span><span class="p">)(</span><span class="n">DISKMAP</span> <span class="o">+</span> <span class="n">DISKSIZE</span><span class="p">))</span>
+		<span class="n">panic</span><span class="p">(</span><span class="s">"page fault in FS: eip %08x, va %08x, err %04x"</span><span class="p">,</span>
+		      <span class="n">utf</span><span class="o">-&gt;</span><span class="n">utf_eip</span><span class="p">,</span> <span class="n">addr</span><span class="p">,</span> <span class="n">utf</span><span class="o">-&gt;</span><span class="n">utf_err</span><span class="p">);</span>
+
+	<span class="c1">// Sanity check the block number.</span>
+	<span class="k">if</span> <span class="p">(</span><span class="n">super</span> <span class="o">&amp;&amp;</span> <span class="n">blockno</span> <span class="o">&gt;=</span> <span class="n">super</span><span class="o">-&gt;</span><span class="n">s_nblocks</span><span class="p">)</span>
+		<span class="n">panic</span><span class="p">(</span><span class="s">"reading non-existent block %08x</span><span class="se">\n</span><span class="s">"</span><span class="p">,</span> <span class="n">blockno</span><span class="p">);</span>
+
+</code></pre></td></tr></tbody></table></div></div>
+
+<p>虚拟地址必须在磁盘映射的虚拟地址范围之内，并且由于文件系统所占有的磁盘空间可能比3GB要小，所以要检查对应的磁盘块号是否在文件系统的范围内（<code class="language-plaintext highlighter-rouge">blockno &lt; super-&gt;s_nblocks</code>).</p>
+
+<p>接下来，由于<code class="language-plaintext highlighter-rouge">addr</code>不一定与页大小对齐，所以要先将它与<code class="language-plaintext highlighter-rouge">PGSIZE</code>对齐：</p>
+
+<div class="language-c highlighter-rouge"><div class="highlight"><table style="margin: 0px"><tbody><tr><td class="gutter"><pre>1</pre></td><td class="code"><pre class="highlight"><code><span class="n">addr</span> <span class="o">=</span> <span class="n">ROUNDDOWN</span><span class="p">(</span><span class="n">addr</span><span class="p">,</span> <span class="n">PGSIZE</span><span class="p">);</span>
+</code></pre></td></tr></tbody></table></div></div>
+
+<p>然后将磁盘块读入内存，则首先要在内存中分配一个页。JOS的<code class="language-plaintext highlighter-rouge">syscall.c</code>中实现了分配内存页的系统调用<code class="language-plaintext highlighter-rouge">sys_page_alloc</code>, 它的接口是：</p>
+<div class="language-c highlighter-rouge"><div class="highlight"><table style="margin: 0px"><tbody><tr><td class="gutter"><pre>1<br/>2</pre></td><td class="code"><pre class="highlight"><code><span class="k">static</span> <span class="kt">int</span>
+<span class="n">sys_page_alloc</span><span class="p">(</span><span class="n">envid_t</span> <span class="n">envid</span><span class="p">,</span> <span class="kt">void</span> <span class="o">*</span><span class="n">va</span><span class="p">,</span> <span class="kt">int</span> <span class="n">perm</span><span class="p">)</span>
+</code></pre></td></tr></tbody></table></div></div>
+
+<p>它为id为envid的环境在内存中分配一个页，并将页首地址映射到虚拟地址va, 设置这个页的权限为perm。（与上次实验一样，PTE_U表示用户可读，PTE_W表示可写，PTE_P表示存在内存中）。</p>
+
+<p>我们知道<code class="language-plaintext highlighter-rouge">init.c</code>中，文件系统环境是第一个被create出来的进程：</p>
+
+<div class="language-c highlighter-rouge"><div class="highlight"><table style="margin: 0px"><tbody><tr><td class="gutter"><pre>1<br/>2<br/>3<br/>4<br/>5<br/>6<br/>7<br/>8<br/>9<br/>10</pre></td><td class="code"><pre class="highlight"><code>	<span class="c1">// Starting non-boot CPUs</span>
+	<span class="n">boot_aps</span><span class="p">();</span>		<span class="c1">//将初始化代码拷贝到MPENTRY_PADDR处，然后依次启动所有AP</span>
+
+	<span class="c1">// Start fs.</span>
+	<span class="n">ENV_CREATE</span><span class="p">(</span><span class="n">fs_fs</span><span class="p">,</span> <span class="n">ENV_TYPE_FS</span><span class="p">);</span>
+
+<span class="cp">#if defined(TEST)
+</span>	<span class="c1">// Don't touch -- used by grading script!</span>
+	<span class="n">ENV_CREATE</span><span class="p">(</span><span class="n">TEST</span><span class="p">,</span> <span class="n">ENV_TYPE_USER</span><span class="p">);</span>
+
+</code></pre></td></tr></tbody></table></div></div>
+
+<p>它的envid为0.</p>
+
+<p>所以可以用：</p>
+
+<div class="language-c highlighter-rouge"><div class="highlight"><table style="margin: 0px"><tbody><tr><td class="gutter"><pre>1</pre></td><td class="code"><pre class="highlight"><code><span class="n">sys_page_alloc</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">addr</span><span class="p">,</span> <span class="n">PTE_W</span><span class="o">|</span><span class="n">PTE_U</span><span class="o">|</span><span class="n">PTE_P</span><span class="p">)</span>
+</code></pre></td></tr></tbody></table></div></div>
+
+<p>来分配页。文件系统对这个页的权限当然是可读可写。</p>
+
+<p>如果内存大小不够的话，<code class="language-plaintext highlighter-rouge">sys_page_alloc</code>会返回E_NO_MEM错误，否则返回0. 这里加以判断，如果内存不足抛出panic。</p>
+
+<p><code class="language-plaintext highlighter-rouge">ide.c</code>磁盘驱动程序提供了读取磁盘的接口：</p>
+
+<div class="language-c highlighter-rouge"><div class="highlight"><table style="margin: 0px"><tbody><tr><td class="gutter"><pre>1<br/>2<br/>3<br/>4<br/>5<br/>6<br/>7<br/>8<br/>9<br/>10<br/>11<br/>12<br/>13<br/>14<br/>15<br/>16<br/>17<br/>18<br/>19<br/>20<br/>21<br/>22<br/>23<br/>24</pre></td><td class="code"><pre class="highlight"><code><span class="kt">int</span>
+<span class="nf">ide_read</span><span class="p">(</span><span class="kt">uint32_t</span> <span class="n">secno</span><span class="p">,</span> <span class="kt">void</span> <span class="o">*</span><span class="n">dst</span><span class="p">,</span> <span class="kt">size_t</span> <span class="n">nsecs</span><span class="p">)</span>
+<span class="p">{</span>
+	<span class="kt">int</span> <span class="n">r</span><span class="p">;</span>
+
+	<span class="n">assert</span><span class="p">(</span><span class="n">nsecs</span> <span class="o">&lt;=</span> <span class="mi">256</span><span class="p">);</span>
+
+	<span class="n">ide_wait_ready</span><span class="p">(</span><span class="mi">0</span><span class="p">);</span>
+
+	<span class="n">outb</span><span class="p">(</span><span class="mh">0x1F2</span><span class="p">,</span> <span class="n">nsecs</span><span class="p">);</span>
+	<span class="n">outb</span><span class="p">(</span><span class="mh">0x1F3</span><span class="p">,</span> <span class="n">secno</span> <span class="o">&amp;</span> <span class="mh">0xFF</span><span class="p">);</span>
+	<span class="n">outb</span><span class="p">(</span><span class="mh">0x1F4</span><span class="p">,</span> <span class="p">(</span><span class="n">secno</span> <span class="o">&gt;&gt;</span> <span class="mi">8</span><span class="p">)</span> <span class="o">&amp;</span> <span class="mh">0xFF</span><span class="p">);</span>
+	<span class="n">outb</span><span class="p">(</span><span class="mh">0x1F5</span><span class="p">,</span> <span class="p">(</span><span class="n">secno</span> <span class="o">&gt;&gt;</span> <span class="mi">16</span><span class="p">)</span> <span class="o">&amp;</span> <span class="mh">0xFF</span><span class="p">);</span>
+	<span class="n">outb</span><span class="p">(</span><span class="mh">0x1F6</span><span class="p">,</span> <span class="mh">0xE0</span> <span class="o">|</span> <span class="p">((</span><span class="n">diskno</span><span class="o">&amp;</span><span class="mi">1</span><span class="p">)</span><span class="o">&lt;&lt;</span><span class="mi">4</span><span class="p">)</span> <span class="o">|</span> <span class="p">((</span><span class="n">secno</span><span class="o">&gt;&gt;</span><span class="mi">24</span><span class="p">)</span><span class="o">&amp;</span><span class="mh">0x0F</span><span class="p">));</span>
+	<span class="n">outb</span><span class="p">(</span><span class="mh">0x1F7</span><span class="p">,</span> <span class="mh">0x20</span><span class="p">);</span>	<span class="c1">// CMD 0x20 means read sector</span>
+
+	<span class="k">for</span> <span class="p">(;</span> <span class="n">nsecs</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">;</span> <span class="n">nsecs</span><span class="o">--</span><span class="p">,</span> <span class="n">dst</span> <span class="o">+=</span> <span class="n">SECTSIZE</span><span class="p">)</span> <span class="p">{</span>
+		<span class="k">if</span> <span class="p">((</span><span class="n">r</span> <span class="o">=</span> <span class="n">ide_wait_ready</span><span class="p">(</span><span class="mi">1</span><span class="p">))</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">)</span>
+			<span class="k">return</span> <span class="n">r</span><span class="p">;</span>
+		<span class="n">insl</span><span class="p">(</span><span class="mh">0x1F0</span><span class="p">,</span> <span class="n">dst</span><span class="p">,</span> <span class="n">SECTSIZE</span><span class="o">/</span><span class="mi">4</span><span class="p">);</span>
+	<span class="p">}</span>
+
+	<span class="k">return</span> <span class="mi">0</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></td></tr></tbody></table></div></div>
+
+<p>磁盘驱动器中读取磁盘的单位是一个扇区。提供的接口中，<code class="language-plaintext highlighter-rouge">secno</code>表示开始扇区号，<code class="language-plaintext highlighter-rouge">dst</code>表示数据输出的地址，<code class="language-plaintext highlighter-rouge">nsecs</code>表示读取扇区数目。</p>
+
+<p><code class="language-plaintext highlighter-rouge">BLKSECTS</code>定义在<code class="language-plaintext highlighter-rouge">fs.h</code>中，为<code class="language-plaintext highlighter-rouge">BLKSIZE/SECSIZE</code>,表示一个块包含的扇区数，则这里<code class="language-plaintext highlighter-rouge">secno</code>应该为 <code class="language-plaintext highlighter-rouge">blockno * BLKSECTS</code>, 目的地址为<code class="language-plaintext highlighter-rouge">addr</code>， 读取扇区数为<code class="language-plaintext highlighter-rouge">BLKSECTS</code>.</p>
+
+<p><code class="language-plaintext highlighter-rouge">bc_pgfault()</code>的实现：</p>
+
+<div class="language-c highlighter-rouge"><div class="highlight"><table style="margin: 0px"><tbody><tr><td class="gutter"><pre>1<br/>2<br/>3<br/>4<br/>5<br/>6<br/>7<br/>8<br/>9<br/>10<br/>11<br/>12<br/>13<br/>14<br/>15<br/>16<br/>17<br/>18<br/>19<br/>20<br/>21<br/>22<br/>23<br/>24<br/>25<br/>26<br/>27<br/>28<br/>29<br/>30<br/>31<br/>32<br/>33<br/>34<br/>35<br/>36<br/>37<br/>38<br/>39<br/>40<br/>41<br/>42</pre></td><td class="code"><pre class="highlight"><code><span class="k">static</span> <span class="kt">void</span>
+<span class="nf">bc_pgfault</span><span class="p">(</span><span class="k">struct</span> <span class="n">UTrapframe</span> <span class="o">*</span><span class="n">utf</span><span class="p">)</span>
+<span class="p">{</span>
+	<span class="kt">void</span> <span class="o">*</span><span class="n">addr</span> <span class="o">=</span> <span class="p">(</span><span class="kt">void</span> <span class="o">*</span><span class="p">)</span> <span class="n">utf</span><span class="o">-&gt;</span><span class="n">utf_fault_va</span><span class="p">;</span>
+	<span class="kt">uint32_t</span> <span class="n">blockno</span> <span class="o">=</span> <span class="p">((</span><span class="kt">uint32_t</span><span class="p">)</span><span class="n">addr</span> <span class="o">-</span> <span class="n">DISKMAP</span><span class="p">)</span> <span class="o">/</span> <span class="n">BLKSIZE</span><span class="p">;</span>
+	<span class="kt">int</span> <span class="n">r</span><span class="p">;</span>
+
+	<span class="c1">// Check that the fault was within the block cache region</span>
+	<span class="k">if</span> <span class="p">(</span><span class="n">addr</span> <span class="o">&lt;</span> <span class="p">(</span><span class="kt">void</span><span class="o">*</span><span class="p">)</span><span class="n">DISKMAP</span> <span class="o">||</span> <span class="n">addr</span> <span class="o">&gt;=</span> <span class="p">(</span><span class="kt">void</span><span class="o">*</span><span class="p">)(</span><span class="n">DISKMAP</span> <span class="o">+</span> <span class="n">DISKSIZE</span><span class="p">))</span>
+		<span class="n">panic</span><span class="p">(</span><span class="s">"page fault in FS: eip %08x, va %08x, err %04x"</span><span class="p">,</span>
+		      <span class="n">utf</span><span class="o">-&gt;</span><span class="n">utf_eip</span><span class="p">,</span> <span class="n">addr</span><span class="p">,</span> <span class="n">utf</span><span class="o">-&gt;</span><span class="n">utf_err</span><span class="p">);</span>
+
+	<span class="c1">// Sanity check the block number.</span>
+	<span class="k">if</span> <span class="p">(</span><span class="n">super</span> <span class="o">&amp;&amp;</span> <span class="n">blockno</span> <span class="o">&gt;=</span> <span class="n">super</span><span class="o">-&gt;</span><span class="n">s_nblocks</span><span class="p">)</span>
+		<span class="n">panic</span><span class="p">(</span><span class="s">"reading non-existent block %08x</span><span class="se">\n</span><span class="s">"</span><span class="p">,</span> <span class="n">blockno</span><span class="p">);</span>
+
+	<span class="c1">// Allocate a page in the disk map region, read the contents</span>
+	<span class="c1">// of the block from the disk into that page.</span>
+	<span class="c1">// Hint: first round addr to page boundary. fs/ide.c has code to read</span>
+	<span class="c1">// the disk.</span>
+	<span class="c1">//</span>
+	<span class="c1">// LAB 5: you code here:</span>
+	<span class="n">addr</span> <span class="o">=</span> <span class="n">ROUNDDOWN</span><span class="p">(</span><span class="n">addr</span><span class="p">,</span> <span class="n">PGSIZE</span><span class="p">);</span>
+    	<span class="k">if</span><span class="p">((</span><span class="n">r</span><span class="o">=</span><span class="n">sys_page_alloc</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">addr</span><span class="p">,</span> <span class="n">PTE_W</span><span class="o">|</span><span class="n">PTE_U</span><span class="o">|</span><span class="n">PTE_P</span><span class="p">))</span><span class="o">&lt;</span><span class="mi">0</span><span class="p">)</span>
+		<span class="n">panic</span><span class="p">(</span><span class="s">"failed to alloc page: %e"</span><span class="p">,</span><span class="n">r</span><span class="p">);</span>
+    	<span class="k">if</span> <span class="p">((</span><span class="n">r</span> <span class="o">=</span> <span class="n">ide_read</span><span class="p">(</span><span class="n">blockno</span><span class="o">*</span><span class="n">BLKSECTS</span><span class="p">,</span> <span class="n">addr</span><span class="p">,</span> <span class="n">BLKSECTS</span><span class="p">))</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">){</span>
+        	<span class="n">panic</span><span class="p">(</span><span class="s">"in bc_pgfault,ide_read: %e"</span><span class="p">,</span> <span class="n">r</span><span class="p">);</span>
+    	<span class="p">}</span>
+
+
+	<span class="c1">// Clear the dirty bit for the disk block page since we just read the</span>
+	<span class="c1">// block from disk</span>
+	<span class="k">if</span> <span class="p">((</span><span class="n">r</span> <span class="o">=</span> <span class="n">sys_page_map</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">addr</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="n">addr</span><span class="p">,</span> <span class="n">uvpt</span><span class="p">[</span><span class="n">PGNUM</span><span class="p">(</span><span class="n">addr</span><span class="p">)]</span> <span class="o">&amp;</span> <span class="n">PTE_SYSCALL</span><span class="p">))</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">)</span>
+		<span class="n">panic</span><span class="p">(</span><span class="s">"in bc_pgfault, sys_page_map: %e"</span><span class="p">,</span> <span class="n">r</span><span class="p">);</span>
+
+	<span class="c1">// Check that the block we read was allocated. (exercise for</span>
+	<span class="c1">// the reader: why do we do this *after* reading the block</span>
+	<span class="c1">// in?)</span>
+	<span class="k">if</span> <span class="p">(</span><span class="n">bitmap</span> <span class="o">&amp;&amp;</span> <span class="n">block_is_free</span><span class="p">(</span><span class="n">blockno</span><span class="p">))</span>
+		<span class="n">panic</span><span class="p">(</span><span class="s">"reading free block %08x</span><span class="se">\n</span><span class="s">"</span><span class="p">,</span> <span class="n">blockno</span><span class="p">);</span>
+<span class="p">}</span>
+
+</code></pre></td></tr></tbody></table></div></div>
+
+<h3 id="flush_block">flush_block</h3>
+
+<p>flush_block函数必要时将内存中的一个磁盘块的数据写回磁盘, 然后将该块的脏位置为0. 这里的必要，指的是当该块在内存中并且脏位为1的时候。假如数据没有发生改变，那么就没必要写磁盘。形参<code class="language-plaintext highlighter-rouge">addr</code>是文件系统进程中的一个虚拟地址，用<code class="language-plaintext highlighter-rouge">blockno=((uint32_t)addr - DISKMAP) / BLKSIZE;</code>将它转为磁盘块号。同样，<code class="language-plaintext highlighter-rouge">addr</code>需要对齐到页大小。</p>
+
+<p>根据提示，首先用<code class="language-plaintext highlighter-rouge">va_is_mapped</code>判断该虚拟地址是否绑定到内存物理地址上，如果没有，说明该块不在内存中，不需要写回。用<code class="language-plaintext highlighter-rouge">va_is_dirty</code>判断该虚拟地址对应页是否被修改过，如果没有也直接返回。</p>
+
+<p>否则用磁盘驱动器的<code class="language-plaintext highlighter-rouge">ide_write(uint32_t secno, const void *src, size_t nsecs)</code>接口来写回块。同样以扇区为单位操作，src是数据块的源虚拟地址。</p>
+
+<p>写回之后，把内存上该块的脏位（PTE_D）置为0. 可以用<code class="language-plaintext highlighter-rouge">sys_page_map</code>来实现。sys_page_map的接口是：</p>
+
+<div class="language-c highlighter-rouge"><div class="highlight"><table style="margin: 0px"><tbody><tr><td class="gutter"><pre>1<br/>2<br/>3</pre></td><td class="code"><pre class="highlight"><code><span class="k">static</span> <span class="kt">int</span>
+<span class="n">sys_page_map</span><span class="p">(</span><span class="n">envid_t</span> <span class="n">srcenvid</span><span class="p">,</span> <span class="kt">void</span> <span class="o">*</span><span class="n">srcva</span><span class="p">,</span>
+	     <span class="n">envid_t</span> <span class="n">dstenvid</span><span class="p">,</span> <span class="kt">void</span> <span class="o">*</span><span class="n">dstva</span><span class="p">,</span> <span class="kt">int</span> <span class="n">perm</span><span class="p">)</span>
+</code></pre></td></tr></tbody></table></div></div>
+
+<p>它将进程 srcenvid的虚拟地址srcva映射到进程dstenvid的dstva处，并将权限设置为perm。</p>
+
+<p>可以通过将源和目的虚拟地址都设置为文件系统的虚拟地址<code class="language-plaintext highlighter-rouge">addr</code>, 并将perm设置为 uvpt[PGNUM(addr)]&amp; PTE_SYSCALL来把PTE_D清空, 并保留addr页面原来的权限设置。</p>
+
+<p>PTE_SYSCALL是只有用户程序进行系统调用时才会设置的，它的值是：<code class="language-plaintext highlighter-rouge">#define PTE_SYSCALL	(PTE_AVAIL | PTE_P | PTE_W | PTE_U)</code>, PTE_AVAIL表示可为用户使用。</p>
+
+<p>加上错误处理，flush_block()实现便完成：</p>
+
+<div class="language-c highlighter-rouge"><div class="highlight"><table style="margin: 0px"><tbody><tr><td class="gutter"><pre>1<br/>2<br/>3<br/>4<br/>5<br/>6<br/>7<br/>8<br/>9<br/>10<br/>11<br/>12<br/>13<br/>14<br/>15<br/>16<br/>17<br/>18<br/>19<br/>20<br/>21<br/>22<br/>23<br/>24<br/>25<br/>26</pre></td><td class="code"><pre class="highlight"><code><span class="c1">// Flush the contents of the block containing VA out to disk if</span>
+<span class="c1">// necessary, then clear the PTE_D bit using sys_page_map.</span>
+<span class="c1">// If the block is not in the block cache or is not dirty, does</span>
+<span class="c1">// nothing.</span>
+<span class="c1">// Hint: Use va_is_mapped, va_is_dirty, and ide_write.</span>
+<span class="c1">// Hint: Use the PTE_SYSCALL constant when calling sys_page_map.</span>
+<span class="c1">// Hint: Don't forget to round addr down.</span>
+<span class="kt">void</span>
+<span class="nf">flush_block</span><span class="p">(</span><span class="kt">void</span> <span class="o">*</span><span class="n">addr</span><span class="p">)</span>
+<span class="p">{</span>
+	<span class="kt">uint32_t</span> <span class="n">blockno</span> <span class="o">=</span> <span class="p">((</span><span class="kt">uint32_t</span><span class="p">)</span><span class="n">addr</span> <span class="o">-</span> <span class="n">DISKMAP</span><span class="p">)</span> <span class="o">/</span> <span class="n">BLKSIZE</span><span class="p">;</span>
+
+	<span class="k">if</span> <span class="p">(</span><span class="n">addr</span> <span class="o">&lt;</span> <span class="p">(</span><span class="kt">void</span><span class="o">*</span><span class="p">)</span><span class="n">DISKMAP</span> <span class="o">||</span> <span class="n">addr</span> <span class="o">&gt;=</span> <span class="p">(</span><span class="kt">void</span><span class="o">*</span><span class="p">)(</span><span class="n">DISKMAP</span> <span class="o">+</span> <span class="n">DISKSIZE</span><span class="p">))</span>
+		<span class="n">panic</span><span class="p">(</span><span class="s">"flush_block of bad va %08x"</span><span class="p">,</span> <span class="n">addr</span><span class="p">);</span>
+
+	<span class="c1">// LAB 5: Your code here.</span>
+    <span class="kt">int</span> <span class="n">r</span><span class="p">;</span>
+    <span class="n">addr</span> <span class="o">=</span> <span class="n">ROUNDDOWN</span><span class="p">(</span><span class="n">addr</span><span class="p">,</span> <span class="n">PGSIZE</span><span class="p">);</span>
+    <span class="k">if</span><span class="p">(</span><span class="o">!</span><span class="n">va_is_mapped</span><span class="p">(</span><span class="n">addr</span><span class="p">)</span><span class="o">||</span> <span class="o">!</span> <span class="n">va_is_dirty</span><span class="p">(</span><span class="n">addr</span><span class="p">))</span>
+        <span class="k">return</span><span class="p">;</span>
+    <span class="k">if</span><span class="p">((</span><span class="n">r</span> <span class="o">=</span> <span class="n">ide_write</span><span class="p">(</span><span class="n">blockno</span> <span class="o">*</span> <span class="n">BLKSECTS</span><span class="p">,</span> <span class="n">addr</span><span class="p">,</span> <span class="n">BLKSECTS</span><span class="p">))</span><span class="o">&lt;</span><span class="mi">0</span><span class="p">)</span>
+        <span class="n">panic</span><span class="p">(</span><span class="s">"in flush_block, ide_write(): %e"</span><span class="p">,</span><span class="n">r</span><span class="p">);</span>
+    <span class="k">if</span><span class="p">((</span><span class="n">r</span> <span class="o">=</span> <span class="n">sys_page_map</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="n">addr</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span><span class="n">addr</span><span class="p">,</span> <span class="n">uvpt</span><span class="p">[</span><span class="n">PGNUM</span><span class="p">(</span><span class="n">addr</span><span class="p">)]</span><span class="o">&amp;</span><span class="n">PTE_SYSCALL</span><span class="p">))</span><span class="o">&lt;</span><span class="mi">0</span><span class="p">)</span>
+        <span class="n">panic</span><span class="p">(</span><span class="s">"in flush_block, sys_page_map: %e"</span><span class="p">,</span><span class="n">r</span><span class="p">);</span>
+
+<span class="p">}</span>  
+</code></pre></td></tr></tbody></table></div></div>
+
+<h3 id="检查-1">检查</h3>
+
+<p><code class="language-plaintext highlighter-rouge">make grade</code>后：</p>
+
+<p><code class="language-plaintext highlighter-rouge">check_bc</code>,<code class="language-plaintext highlighter-rouge">check_super</code>和<code class="language-plaintext highlighter-rouge">check_bitmap</code>OK，表示两个函数实现正确。</p>
+
+<hr />
+
+<h2 id="todo3">TODO3:</h2>
+
+<blockquote>
+  <p>使用free_block作为模板在fs / fs.c中实现alloc_block，后者应在bitmap中找到可用的磁盘块，将其标记为已使用，然后返回该块的编号。 分配该块时，应立即使用flush_block将更改后的bitmap块刷新到磁盘，以帮助文件系统保持一致。</p>
+</blockquote>
+
+<p>alloc_block的过程是：</p>
+
+<ul>
+  <li>从第一个块号开始，调用<code class="language-plaintext highlighter-rouge">block_is_free</code>判断它是否空闲，找到第一个空闲的块。<code class="language-plaintext highlighter-rouge">block_is_free</code>就是从判断<code class="language-plaintext highlighter-rouge">bitmap</code>中该块对应的bit是否为1（free），如果是则返回真。</li>
+  <li>找到第一个空闲块后，将bitmap中对应的位置为0.</li>
+  <li>使用flush_block()将该块对应的bitmap块写回磁盘，保持同步。因为flush_block()接收的是虚拟地址，所以还要使用<code class="language-plaintext highlighter-rouge">diskaddr</code>将块号转化为虚拟地址。</li>
+</ul>
+
+<p><code class="language-plaintext highlighter-rouge">bitmap</code>数据结构在<code class="language-plaintext highlighter-rouge">fs.h</code>中定义，是一个类型为<code class="language-plaintext highlighter-rouge">uint32_t</code>的数组，那么数组的一个元素（32位）就可以表示32个块。要判断一个块是否空闲，应该用<code class="language-plaintext highlighter-rouge">bitmap[blockno/32] &amp;= 1&lt;&lt;blockno%32</code>是否为1来判断。则要将某一位置为0，可以用<code class="language-plaintext highlighter-rouge">bitmap[blockno/32] &amp;= ~(1&lt;&lt;blockno%32)</code>。</p>
+
+<p>在JOS中，磁盘的第一个块（blockno=0）是boot sector，第二个块（blockno=1）是超级块，第三个块（blockno=2）开始才是bitmap块。因此给定一个块号blockno，它的bitmap所在的块为： <code class="language-plaintext highlighter-rouge">2+ (blockno/32) / (BLKSIZE /4 )</code>.  一个bitmap元素的大小是4个字节，一个块大小是<code class="language-plaintext highlighter-rouge">BLKSIZE</code>，所以一个块总共有<code class="language-plaintext highlighter-rouge">BLKSIZE/4</code>个bitmap元素， blockno/32为该块对应的bitmap索引号，除以每块能存放的元素数就是相对的块偏移。</p>
+
+<p><code class="language-plaintext highlighter-rouge">diskaddr</code>定义在<code class="language-plaintext highlighter-rouge">bc.c</code>中，它接收一个磁盘块号，返回在文件系统进程中对应的虚拟地址。</p>
+
+<p>alloc_block的实现如下：</p>
+
+<div class="language-c highlighter-rouge"><div class="highlight"><table style="margin: 0px"><tbody><tr><td class="gutter"><pre>1<br/>2<br/>3<br/>4<br/>5<br/>6<br/>7<br/>8<br/>9<br/>10<br/>11<br/>12<br/>13<br/>14<br/>15<br/>16<br/>17<br/>18</pre></td><td class="code"><pre class="highlight"><code><span class="kt">int</span>
+<span class="nf">alloc_block</span><span class="p">(</span><span class="kt">void</span><span class="p">)</span>
+<span class="p">{</span>
+	<span class="c1">// The bitmap consists of one or more blocks.  A single bitmap block</span>
+	<span class="c1">// contains the in-use bits for BLKBITSIZE blocks.  There are</span>
+	<span class="c1">// super-&gt;s_nblocks blocks in the disk altogether.</span>
+
+	<span class="c1">// LAB 5: Your code here.</span>
+	<span class="k">for</span><span class="p">(</span><span class="kt">uint32_t</span> <span class="n">blockno</span><span class="o">=</span><span class="mi">0</span><span class="p">;</span> <span class="n">blockno</span><span class="o">&lt;</span> <span class="n">super</span><span class="o">-&gt;</span><span class="n">s_nblocks</span><span class="p">;</span> <span class="n">blockno</span><span class="o">++</span><span class="p">){</span>
+		<span class="k">if</span><span class="p">(</span><span class="n">block_is_free</span><span class="p">(</span><span class="n">blockno</span><span class="p">){</span>
+			<span class="n">bitmap</span><span class="p">[</span><span class="n">blockno</span><span class="o">/</span><span class="mi">32</span><span class="p">]</span> <span class="o">&amp;=</span> <span class="o">~</span><span class="p">(</span><span class="mi">1</span><span class="o">&lt;&lt;</span><span class="p">(</span><span class="n">blockno</span><span class="o">%</span><span class="mi">32</span><span class="p">));</span> <span class="c1">//将bitmap上对应的位置为0，表示占用。</span>
+			<span class="n">flush_block</span><span class="p">(</span><span class="n">diskaddr</span><span class="p">(</span><span class="mi">2</span> <span class="o">+</span> <span class="p">(</span><span class="n">blockno</span> <span class="o">/</span> <span class="mi">32</span><span class="p">)</span> <span class="o">/</span> <span class="p">(</span><span class="n">BLKSIZE</span><span class="o">/</span><span class="mi">4</span><span class="p">)));</span> <span class="c1">//bitmap的第一块磁盘块号是2, blockno/32是该blockno在bitmap中的索引号。</span>
+			<span class="k">return</span> <span class="n">blockno</span><span class="p">;</span>
+		<span class="p">}</span>
+	<span class="p">}</span>
+
+	<span class="k">return</span> <span class="o">-</span><span class="n">E_NO_DISK</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></td></tr></tbody></table></div></div>
+
+<h3 id="检查-2">检查</h3>
+
+<p><code class="language-plaintext highlighter-rouge">make grade</code>:</p>
+
+<p><code class="language-plaintext highlighter-rouge">alloc_block</code>OK, 代码正确。</p>
+
+<hr />
+
+<h2 id="todo4">TODO4</h2>
+
+<blockquote>
+  <p>实现file_block_walk和file_get_block。 file_block_walk从文件中的块偏移量映射到struct File或间接块中的指针，非常类似于pgdir_walk对页表所做的操作。 file_get_block更进一步，并映射到实际的磁盘块，并在必要时分配一个新的磁盘块。</p>
+</blockquote>
+
+<h3 id="阅读fs-c中的代码">阅读fs. c中的代码</h3>
+
+<p>fs.c中实现了文件系统的各种操作，包括初始化、从根目录开始遍历文件系统以找到某个绝对路径标识的文件、在目录上分配一个文件的条目、获取一个文件的条目、获取文件的某个块等基本操作，以及对文件进行创建、打开、删除、修改、读取、写回磁盘、扩展、截短等操作。</p>
+
+<p>JOS中，有两个磁盘映像。如果磁盘1可用的话，磁盘0只用来装载内核，磁盘1上才实现了文件系统。<code class="language-plaintext highlighter-rouge">fs_init()</code>函数检查可用磁盘，并设置超级块<code class="language-plaintext highlighter-rouge">super</code>为该磁盘的第二块。</p>
+
+<p>fs.c中所有的函数以及对应的功能为：</p>
+
+<ul>
+  <li>bitmap操作：
+    <ul>
+      <li><code class="language-plaintext highlighter-rouge">block_is_free(blockno)</code>: 接收磁盘块号，根据bitmap判断块是否空闲</li>
+      <li><code class="language-plaintext highlighter-rouge">free_block(blockno)</code>: 接收磁盘块号，释放该块，将bitmap中对应位置1.</li>
+      <li><code class="language-plaintext highlighter-rouge">alloc_block()</code>: 根据bitmap找到第一个空闲块，将它分配出去，返回块号</li>
+    </ul>
+  </li>
+  <li>文件系统结构构建和维护：
+    <ul>
+      <li><code class="language-plaintext highlighter-rouge">fs_init()</code>： 初始化文件系统。找到可用磁盘，设置磁盘驱动，读取超级块并保存指针到<code class="language-plaintext highlighter-rouge">super</code>。</li>
+      <li><code class="language-plaintext highlighter-rouge">file_block_walk(struct File *f, uint32_t filebno, uint32_t **ppdiskbno, bool alloc)</code>: 查找文件<code class="language-plaintext highlighter-rouge">f</code>的第<code class="language-plaintext highlighter-rouge">filebno</code>个块的磁盘地址（通过该文件元数据中的索引来查找），将该索引的地址存放到<code class="language-plaintext highlighter-rouge">ppdiskbno</code>中；由于直接索引只有10个，则当块号<code class="language-plaintext highlighter-rouge">fileno</code>大于9时，而间接索引还没有分配的时候，如果<code class="language-plaintext highlighter-rouge">alloc</code>，就分配一个间接索引页，然后将<code class="language-plaintext highlighter-rouge">ppdiskbno</code>置为该间接索引页上对应的索引地址。</li>
+      <li><code class="language-plaintext highlighter-rouge">file_get_block(struct File *f, uint32_t filebno, char **blk) </code>: 查找文件<code class="language-plaintext highlighter-rouge">f</code>的第<code class="language-plaintext highlighter-rouge">filebno</code>块在文件系统进程中对应的虚拟地址，并将其保存在<code class="language-plaintext highlighter-rouge">blk</code>中</li>
+      <li><code class="language-plaintext highlighter-rouge"> dir_lookup(struct File *dir, const char *name, struct File **file) </code>: 在<code class="language-plaintext highlighter-rouge">DIR</code>指定的目录下寻找名字为<code class="language-plaintext highlighter-rouge">name</code>的文件的元数据，并将元数据的地址保存到<code class="language-plaintext highlighter-rouge">file</code>中。</li>
+      <li><code class="language-plaintext highlighter-rouge"> dir_alloc_file(struct File *dir, struct File **file) </code>: 在<code class="language-plaintext highlighter-rouge">dir</code>目录下寻找一个没有被使用的<code class="language-plaintext highlighter-rouge">File</code>结构，把它分配给一个新文件使用（调用者负责填充这块元数据），将它的地址存放到<code class="language-plaintext highlighter-rouge">file</code>中。</li>
+      <li><code class="language-plaintext highlighter-rouge"> walk_path(const char *path, struct File **pdir, struct File **pf, char *lastelem) </code>: 解析<code class="language-plaintext highlighter-rouge">path</code>中的文件路径，如果成功，将文件的元数据地址存放在<code class="language-plaintext highlighter-rouge">pf</code>中，将文件所在目录的元数据地址存放在<code class="language-plaintext highlighter-rouge">pdir</code>中。如果不成功，<code class="language-plaintext highlighter-rouge">pdir</code>还是存放最后匹配的目录元数据地址，而<code class="language-plaintext highlighter-rouge">lastelem</code>存放最后无法匹配的路径字符串。例如目录/aaa/bbb/下不存在/aaa/bbb/c.c，则pdir指向/aaa/bbb的元数据，<code class="language-plaintext highlighter-rouge">lastelem</code>=’c.c’</li>
+    </ul>
+  </li>
+  <li>文件操作：
+    <ul>
+      <li><code class="language-plaintext highlighter-rouge">file_create(const char *path, struct File **pf)</code>: 创建<code class="language-plaintext highlighter-rouge">path</code>文件/目录，如果成功，将该文件或目录的元数据指针放在<code class="language-plaintext highlighter-rouge">pf</code>中。</li>
+      <li><code class="language-plaintext highlighter-rouge">file_open(const char *path, struct File **pf)</code>: 打开<code class="language-plaintext highlighter-rouge">path</code>， 如果成功，将该文件元数据地址赋给<code class="language-plaintext highlighter-rouge">pf</code>.</li>
+      <li><code class="language-plaintext highlighter-rouge">file_read(struct File *f, void *buf, size_t count, off_t offset)</code>: 从文件<code class="language-plaintext highlighter-rouge">f</code>的<code class="language-plaintext highlighter-rouge">offset</code>位置（字节为单位）开始， 读取<code class="language-plaintext highlighter-rouge">count</code>个字节到<code class="language-plaintext highlighter-rouge">buf</code>中，返回实际读取字节数。</li>
+      <li><code class="language-plaintext highlighter-rouge">file_write(struct File *f, const void *buf, size_t count, off_t offset)</code>: 向文件<code class="language-plaintext highlighter-rouge">f</code>从<code class="language-plaintext highlighter-rouge">offset</code>位置开始，写入<code class="language-plaintext highlighter-rouge">count</code>个字节，数据的来源是<code class="language-plaintext highlighter-rouge">buf</code>。 如果写的时候文件的大小超过了它已分配的块就要扩展文件。</li>
+      <li><code class="language-plaintext highlighter-rouge">file_free_block(struct File *f, uint32_t filebno)</code>: 删除文件<code class="language-plaintext highlighter-rouge">f</code>的第<code class="language-plaintext highlighter-rouge">filebno</code>个块。</li>
+      <li><code class="language-plaintext highlighter-rouge">file_truncate_blocks(struct File *f, off_t newsize)</code>: 将文件<code class="language-plaintext highlighter-rouge">f</code>截短到<code class="language-plaintext highlighter-rouge">newsize</code>的大小。具体操作是，计算原来文件具有的块数和新的块数，将超过新块数的部分释放掉。如果新的大小已经小于10块，则不需要间接索引了，释放掉间接索引块</li>
+      <li><code class="language-plaintext highlighter-rouge">file_set_size(struct File *f, off_t newsize)</code>: 设置文件<code class="language-plaintext highlighter-rouge">f</code>的大小为<code class="language-plaintext highlighter-rouge">newsize</code>,自动截短或扩展。</li>
+      <li><code class="language-plaintext highlighter-rouge">file_flush(struct File *f)</code>: 将文件<code class="language-plaintext highlighter-rouge">f</code>的数据和元数据写回磁盘，遍历文件的所有块，将所有的脏块写回磁盘。</li>
+    </ul>
+  </li>
+</ul>
+
+<h3 id="file_block_walk">file_block_walk（）</h3>
+
+<p>查找文件<code class="language-plaintext highlighter-rouge">f</code>的第<code class="language-plaintext highlighter-rouge">filebno</code>个块的磁盘地址（通过该文件元数据中的索引来查找），将该索引的地址存放到<code class="language-plaintext highlighter-rouge">ppdiskbno</code>中。如果<code class="language-plaintext highlighter-rouge">alloc</code>置位，必要时分配间接索引页，否则返回错误信息。函数的过程：</p>
+
+<ul>
+  <li>判断<code class="language-plaintext highlighter-rouge">filebno</code>，是否在直接索引支持的范围内（0-9），如果是，就直接将ppdiskbno赋为直接索引上对应的条目的地址，即<code class="language-plaintext highlighter-rouge">&amp; (f-&gt;f_direct[filebno])</code>.</li>
+  <li>如果<code class="language-plaintext highlighter-rouge">filebno</code>大于9，但是小于1034, 即文件系统可以支持的文件最大块数
+    <ul>
+      <li>如果间接索引块还没有分配，要检查<code class="language-plaintext highlighter-rouge">alloc</code>，如果alloc为0，返回<code class="language-plaintext highlighter-rouge">-E_NOT_FOUND</code>表示找不到索引条目。</li>
+      <li>如果alloc为1：
+        <ul>
+          <li>调用<code class="language-plaintext highlighter-rouge">alloc_block</code>为间接索引分配一个块， 如果分配错误，返回<code class="language-plaintext highlighter-rouge">-E_NO_DISK</code>。</li>
+          <li>分配成功，则将间接索引链接到这个块上，即<code class="language-plaintext highlighter-rouge">f-&gt;f_indirect = blockno</code>，这样查询10号以后的块时，首先查找<code class="language-plaintext highlighter-rouge">f-&gt;f_indirect</code>得到索引块的地址，然后在索引块上找到对应的直接索引条目，根据该条目的值找到物理块号。</li>
+          <li>分配好之后，还要将索引块初始化为全0，表示这些文件块还没有分配和映射。</li>
+        </ul>
+      </li>
+      <li>无论是新分配的，还是原来就存在的，都要将间接索引块上对应的索引条目地址存放到<code class="language-plaintext highlighter-rouge">ppdiskbno</code>中。 <strong>如何获得索引块上对应的条目地址呢？</strong> 首先，<code class="language-plaintext highlighter-rouge">f-&gt;f_indirect</code>给出索引块的物理地址，用<code class="language-plaintext highlighter-rouge">diskaddr(f-&gt;f_indirect)</code>就可以知道它的虚拟地址，也就是这个块上第一个索引条目的地址。这个虚拟地址再加上<code class="language-plaintext highlighter-rouge">filebno</code>在索引块上的偏移量就可以得到索引条目的虚拟地址，代码上有两种实现方式：
+        <ol>
+          <li><code class="language-plaintext highlighter-rouge">(uintptr_t*) diskaddr(f-&gt;f_indirect)</code>将索引块的虚拟地址转为JOS的指针类型，指针可以用<code class="language-plaintext highlighter-rouge">[i]</code>操作符来取得第i个数据，这里i应该是<code class="language-plaintext highlighter-rouge">filebno-10</code>, 因为是索引块上的第<code class="language-plaintext highlighter-rouge">filebno-10</code>条索引，最后用<code class="language-plaintext highlighter-rouge">&amp;</code>取址。</li>
+          <li>首先用<code class="language-plaintext highlighter-rouge"> diskaddr(f-&gt;f_indirect)</code>获得第一个索引条目的虚拟地址，然后加上<code class="language-plaintext highlighter-rouge">(filebno-10)*4</code>就得到第<code class="language-plaintext highlighter-rouge">filebno-10</code>的地址，因为每个索引条目大小是4个字节。</li>
+        </ol>
+      </li>
+    </ul>
+  </li>
+  <li>如果<code class="language-plaintext highlighter-rouge">filebno</code>超过1034，是无效的，返回<code class="language-plaintext highlighter-rouge">-E_INVAL</code>，否则返回0，表示成功。</li>
+</ul>
+
+<div class="language-c highlighter-rouge"><div class="highlight"><table style="margin: 0px"><tbody><tr><td class="gutter"><pre>1<br/>2<br/>3<br/>4<br/>5<br/>6<br/>7<br/>8<br/>9<br/>10<br/>11<br/>12<br/>13<br/>14<br/>15<br/>16<br/>17<br/>18<br/>19<br/>20<br/>21<br/>22<br/>23<br/>24<br/>25<br/>26<br/>27<br/>28</pre></td><td class="code"><pre class="highlight"><code><span class="k">static</span> <span class="kt">int</span>
+<span class="nf">file_block_walk</span><span class="p">(</span><span class="k">struct</span> <span class="n">File</span> <span class="o">*</span><span class="n">f</span><span class="p">,</span> <span class="kt">uint32_t</span> <span class="n">filebno</span><span class="p">,</span> <span class="kt">uint32_t</span> <span class="o">**</span><span class="n">ppdiskbno</span><span class="p">,</span> <span class="n">bool</span> <span class="n">alloc</span><span class="p">)</span>
+<span class="p">{</span>
+       <span class="c1">// LAB 5: Your code here.</span>
+	<span class="kt">uint32_t</span> <span class="n">blockno</span><span class="p">;</span>
+	<span class="k">if</span><span class="p">(</span><span class="n">filebno</span> <span class="o">&lt;=</span><span class="mi">9</span><span class="p">){</span>
+		<span class="o">*</span><span class="n">ppdiskbno</span> <span class="o">=</span> <span class="o">&amp;</span><span class="p">(</span><span class="n">f</span><span class="o">-&gt;</span><span class="n">f_direct</span><span class="p">[</span><span class="n">filebno</span><span class="p">]);</span>
+	<span class="p">}</span>
+	<span class="k">else</span> <span class="k">if</span><span class="p">(</span><span class="n">filebno</span><span class="o">&lt;</span><span class="mi">1034</span><span class="p">){</span>
+		<span class="k">if</span><span class="p">(</span><span class="o">!</span><span class="n">f</span><span class="o">-&gt;</span><span class="n">f_indirect</span><span class="p">){</span>
+			<span class="k">if</span><span class="p">(</span><span class="o">!</span><span class="n">alloc</span><span class="p">)</span>
+				<span class="k">return</span> <span class="o">-</span><span class="n">E_NOT_FOUND</span><span class="p">;</span>
+			
+			<span class="k">else</span><span class="p">{</span>
+				<span class="k">if</span><span class="p">((</span><span class="n">blockno</span><span class="o">=</span><span class="n">alloc_block</span><span class="p">())</span><span class="o">&lt;</span><span class="mi">0</span><span class="p">)</span>
+					<span class="k">return</span> <span class="o">-</span><span class="n">E_NO_DISK</span><span class="p">;</span>
+				<span class="n">f</span><span class="o">-&gt;</span><span class="n">f_indirect</span> <span class="o">=</span> <span class="n">blockno</span><span class="p">;</span>
+				<span class="n">memset</span><span class="p">(</span><span class="n">diskaddr</span><span class="p">(</span><span class="n">blockno</span><span class="p">),</span> <span class="mi">0</span><span class="p">,</span> <span class="n">BLKSIZE</span><span class="p">);</span>
+			<span class="p">}</span>
+		<span class="p">}</span>
+		<span class="o">*</span><span class="n">ppdiskbno</span> <span class="o">=</span> <span class="o">&amp;</span><span class="p">((</span><span class="kt">uintptr_t</span><span class="o">*</span><span class="p">)</span> <span class="n">diskaddr</span><span class="p">(</span><span class="n">f</span><span class="o">-&gt;</span><span class="n">f_indirect</span><span class="p">))[</span><span class="n">filebno</span><span class="o">-</span><span class="mi">10</span><span class="p">];</span>
+        
+       <span class="c1">//或者 *ppdiskbno = diskaddr(f-&gt;f_indirect)+ (filebno-10)*4;</span>
+	<span class="p">}</span>
+	<span class="k">else</span> <span class="k">return</span> <span class="o">-</span><span class="n">E_INVAL</span><span class="p">;</span>
+	<span class="k">return</span> <span class="mi">0</span><span class="p">;</span>
+		
+<span class="p">}</span>
+</code></pre></td></tr></tbody></table></div></div>
+
+<h3 id="file_get_block">file_get_block()</h3>
+
+<p>file_get_block在file_block_walk的基础上，更进一步地，获取文件块对应的物理块号，并将物理块在文件系统进程中对应的虚拟地址保存在<code class="language-plaintext highlighter-rouge">blk</code>中，过程是：</p>
+
+<ul>
+  <li>调用<code class="language-plaintext highlighter-rouge">file_block_walk</code>获取<code class="language-plaintext highlighter-rouge">f</code>的第<code class="language-plaintext highlighter-rouge">filebno</code>个块的索引条目地址，保存在<code class="language-plaintext highlighter-rouge">slot</code>中，要把<code class="language-plaintext highlighter-rouge">alloc</code>设置为1，表示如果需要用到间接索引但索引块还未分配时要自动分配。</li>
+  <li>如果<code class="language-plaintext highlighter-rouge">flie_block_walk</code>返回值小于0，表示发生了错误，返回对应的错误码。</li>
+  <li>如果<code class="language-plaintext highlighter-rouge">slot</code>的值为0，即该文件逻辑块还没有分配到具体的物理块，可能是文件被创建或者被扩展等，要为该文件块分配一个物理块，使用<code class="language-plaintext highlighter-rouge">alloc_block()</code>
+    <ul>
+      <li>如果分配错误应返回<code class="language-plaintext highlighter-rouge">-E_NO_DISK</code></li>
+      <li>分配成功，则令对应的索引条目值为返回的物理块号，这样文件块就被映射到物理块上。</li>
+    </ul>
+  </li>
+  <li>无论文件块原来是否已经分配，将物理块对应的虚拟地址保存在<code class="language-plaintext highlighter-rouge">blk</code>中。<code class="language-plaintext highlighter-rouge">*slot</code>是对应的物理块号，调用<code class="language-plaintext highlighter-rouge">diskaddr(*slot)</code>就可以找到虚拟地址，将它保存在<code class="language-plaintext highlighter-rouge">blk</code>中，成功返回0.</li>
+</ul>
+
+<div class="language-c highlighter-rouge"><div class="highlight"><table style="margin: 0px"><tbody><tr><td class="gutter"><pre>1<br/>2<br/>3<br/>4<br/>5<br/>6<br/>7<br/>8<br/>9<br/>10<br/>11<br/>12<br/>13<br/>14<br/>15<br/>16<br/>17<br/>18<br/>19</pre></td><td class="code"><pre class="highlight"><code><span class="kt">int</span>
+<span class="nf">file_get_block</span><span class="p">(</span><span class="k">struct</span> <span class="n">File</span> <span class="o">*</span><span class="n">f</span><span class="p">,</span> <span class="kt">uint32_t</span> <span class="n">filebno</span><span class="p">,</span> <span class="kt">char</span> <span class="o">**</span><span class="n">blk</span><span class="p">)</span>
+<span class="p">{</span>
+       <span class="c1">// LAB 5: Your code here.</span>
+	<span class="kt">uint32_t</span> <span class="o">*</span><span class="n">slot</span><span class="o">=</span><span class="nb">NULL</span><span class="p">;</span>    <span class="c1">//slot = 索引条目的地址，*slot = 文件块对应的物理块号码</span>
+	<span class="kt">uint32_t</span> <span class="n">errorcode</span><span class="o">=</span><span class="n">file_block_walk</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">filebno</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">slot</span><span class="p">,</span> <span class="mi">1</span><span class="p">);</span>
+	<span class="kt">uint32_t</span> <span class="n">blockno</span><span class="p">;</span>
+
+	<span class="k">if</span><span class="p">(</span><span class="n">errorcode</span><span class="o">&lt;</span><span class="mi">0</span><span class="p">)</span>
+		<span class="k">return</span> <span class="n">errorcode</span><span class="p">;</span>
+	<span class="k">if</span><span class="p">(</span><span class="o">!*</span><span class="n">slot</span><span class="p">){</span>
+		<span class="k">if</span><span class="p">((</span><span class="n">blockno</span> <span class="o">=</span> <span class="n">alloc_block</span><span class="p">())</span><span class="o">&lt;</span><span class="mi">0</span><span class="p">)</span>
+			<span class="k">return</span> <span class="o">-</span><span class="n">E_NO_DISK</span><span class="p">;</span>
+		<span class="o">*</span><span class="n">slot</span> <span class="o">=</span> <span class="n">blockno</span><span class="p">;</span>
+	<span class="p">}</span>
+	<span class="o">*</span><span class="n">blk</span> <span class="o">=</span> <span class="p">(</span><span class="kt">char</span> <span class="o">*</span><span class="p">)</span><span class="n">diskaddr</span><span class="p">(</span><span class="o">*</span><span class="n">slot</span><span class="p">);</span>
+	<span class="k">return</span> <span class="mi">0</span><span class="p">;</span>
+
+<span class="p">}</span>
+</code></pre></td></tr></tbody></table></div></div>
+
+<h3 id="检查-3">检查</h3>
+
+<p><code class="language-plaintext highlighter-rouge">make grade</code>:</p>
+
+<p><code class="language-plaintext highlighter-rouge">file_get_block</code>OK，代码正确。</p>
+
+<hr />
+
+<h2 id="todo5">TODO5:</h2>
+
+<blockquote>
+  <p>•在fs/serv.c中实现serve_read 。</p>
+
+  <p>•serve_read的大量操作将由fs / fs.c中已经实现的file_read来完成。 serve_read只需提供RPC接口即可读取文件。 查看serve_set_size中的注释和代码，以大致了解服务器功能的结构。</p>
+</blockquote>
+
+<h3 id="请求文件系统服务的过程">请求文件系统服务的过程</h3>
+
+<p>文件系统进程内部实现了对文件的各种操作，但是用户进程无法直接调用这些函数，因为它们是在文件系统进程的内存空间内。这时，需要采用<strong>进程间通信（IPC机制）</strong>来在进程之间交换数据或者方法。JOS中，使用主从式架构来进行文件系统和其他进程之间的通信。通常，使用IPC进行数据交换的两个进程可以被分为服务端和用户端，客户端向服务器发出请求，服务器进行处理之后回应请求。JOS用建立在IPC基础上的远程过程调用（RPC）来进行通信。RPC在两个应用之间建立TCP连接，然后客户端应用将过程调用的参数序列化成二进制数据之后发送给服务端，服务端反序列化之后进行过程调用，返回值再序列化后发送回客户端。</p>
+
+<p>JOS的文件系统调用过程是：</p>
+
+<p><img src="http://localhost:4000/assets/images/report/OS6.png" alt="image-20191213134403520" style="zoom: 40%;" /></p>
+
+<p>底层实际上是进程间通信。</p>
+
+<p>文件系统的相关数据结构有：</p>
+
+<ul>
+  <li>文件描述符<code class="language-plaintext highlighter-rouge">Fd</code>： 文件所在的设备id（因为一个文件系统可以跨多个设备），是否打开, 以及<code class="language-plaintext highlighter-rouge">fd_offset</code>文件的光标等。</li>
+  <li>设备描述符<code class="language-plaintext highlighter-rouge">Dev</code>： 设备上各种操作调用的入口，设备名字和设备id。</li>
+  <li>打开文件描述符列表<code class="language-plaintext highlighter-rouge">OpenFile</code>结构，由内核维护的<code class="language-plaintext highlighter-rouge">opentab</code>数组，保存了文件元数据的地址，文件打开状态，文件id以及磁盘上文件描述符<code class="language-plaintext highlighter-rouge">Fd</code>结构的指针</li>
+  <li><code class="language-plaintext highlighter-rouge">File</code>结构（文件元数据）：维护文件重要信息，完成逻辑块到物理块的映射等。</li>
+</ul>
+
+<p><img src="https://blog-1253119293.cos.ap-beijing.myqcloud.com/6.828/lab5/lab5_4_%E6%96%87%E4%BB%B6%E7%B3%BB%E7%BB%9F%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84.png" alt="技術分享圖片" style="zoom:50%;" /></p>
+
+<p>文件描述符表映射在磁盘的0xD0000000处，文件描述符结构中包含了设备id，当进程调用<code class="language-plaintext highlighter-rouge">fd.c</code>中的<code class="language-plaintext highlighter-rouge">read</code>时，将传入文件描述符号，通过文件描述符号找到对应地<code class="language-plaintext highlighter-rouge">Fd</code>结构体，进而查找设备，设备用<code class="language-plaintext highlighter-rouge">Dev</code>结构来描述，结构体中包含了<code class="language-plaintext highlighter-rouge">dev_read</code>, <code class="language-plaintext highlighter-rouge">dev_write</code>等设备读、写函数的指针。<code class="language-plaintext highlighter-rouge">devfile_read</code>函数定义在<code class="language-plaintext highlighter-rouge">file.c</code>中，它将调用<code class="language-plaintext highlighter-rouge">fsipc()</code>向服务器进程发起请求。</p>
+
+<p><code class="language-plaintext highlighter-rouge">fsipc()</code>函数专门负责与文件系统进程进行通信，它建立在<code class="language-plaintext highlighter-rouge">ipc</code>机制上。</p>
+
+<p><code class="language-plaintext highlighter-rouge">ipc.c</code>封装了两个函数——<code class="language-plaintext highlighter-rouge">ipc_send( envid_t to_env, uint32_t val, void *pg, int perm )</code>和<code class="language-plaintext highlighter-rouge">ipc_recv( envid_t *from_env_store, void *pg, int *perm_store )</code>，允许与某一个环境进行数据交换，交换的消息包含两个部分：</p>
+
+<ul>
+  <li>1个32位的值</li>
+  <li>可选的页映射关系</li>
+</ul>
+
+<p>其中，<code class="language-plaintext highlighter-rouge">send</code>中的<code class="language-plaintext highlighter-rouge">val</code>是交换的数值，<code class="language-plaintext highlighter-rouge">pg</code>参数表示发送进程希望与接收进程共享<code class="language-plaintext highlighter-rouge">pg</code>对应的物理页，并且在接收进程中，对该页的权限是<code class="language-plaintext highlighter-rouge">perm</code>。</p>
+
+<p>文件系统实现了一个<code class="language-plaintext highlighter-rouge">Fspic</code>数据结构：</p>
+
+<div class="language-c highlighter-rouge"><div class="highlight"><table style="margin: 0px"><tbody><tr><td class="gutter"><pre>1<br/>2<br/>3<br/>4<br/>5<br/>6<br/>7<br/>8<br/>9<br/>10<br/>11<br/>12<br/>13<br/>14<br/>15<br/>16<br/>17<br/>18<br/>19<br/>20<br/>21<br/>22<br/>23<br/>24<br/>25<br/>26<br/>27<br/>28<br/>29<br/>30<br/>31<br/>32<br/>33<br/>34<br/>35<br/>36<br/>37<br/>38<br/>39</pre></td><td class="code"><pre class="highlight"><code><span class="k">union</span> <span class="n">Fsipc</span> <span class="p">{</span>
+	<span class="k">struct</span> <span class="n">Fsreq_open</span> <span class="p">{</span>
+		<span class="kt">char</span> <span class="n">req_path</span><span class="p">[</span><span class="n">MAXPATHLEN</span><span class="p">];</span>
+		<span class="kt">int</span> <span class="n">req_omode</span><span class="p">;</span>
+	<span class="p">}</span> <span class="n">open</span><span class="p">;</span>
+	<span class="k">struct</span> <span class="n">Fsreq_set_size</span> <span class="p">{</span>
+		<span class="kt">int</span> <span class="n">req_fileid</span><span class="p">;</span>
+		<span class="kt">off_t</span> <span class="n">req_size</span><span class="p">;</span>
+	<span class="p">}</span> <span class="n">set_size</span><span class="p">;</span>
+	<span class="k">struct</span> <span class="n">Fsreq_read</span> <span class="p">{</span>
+		<span class="kt">int</span> <span class="n">req_fileid</span><span class="p">;</span>
+		<span class="kt">size_t</span> <span class="n">req_n</span><span class="p">;</span>
+	<span class="p">}</span> <span class="n">read</span><span class="p">;</span>
+	<span class="k">struct</span> <span class="n">Fsret_read</span> <span class="p">{</span>
+		<span class="kt">char</span> <span class="n">ret_buf</span><span class="p">[</span><span class="n">PGSIZE</span><span class="p">];</span>
+	<span class="p">}</span> <span class="n">readRet</span><span class="p">;</span>
+	<span class="k">struct</span> <span class="n">Fsreq_write</span> <span class="p">{</span>
+		<span class="kt">int</span> <span class="n">req_fileid</span><span class="p">;</span>
+		<span class="kt">size_t</span> <span class="n">req_n</span><span class="p">;</span>
+		<span class="kt">char</span> <span class="n">req_buf</span><span class="p">[</span><span class="n">PGSIZE</span> <span class="o">-</span> <span class="p">(</span><span class="k">sizeof</span><span class="p">(</span><span class="kt">int</span><span class="p">)</span> <span class="o">+</span> <span class="k">sizeof</span><span class="p">(</span><span class="kt">size_t</span><span class="p">))];</span>
+	<span class="p">}</span> <span class="n">write</span><span class="p">;</span>
+	<span class="k">struct</span> <span class="n">Fsreq_stat</span> <span class="p">{</span>
+		<span class="kt">int</span> <span class="n">req_fileid</span><span class="p">;</span>
+	<span class="p">}</span> <span class="n">stat</span><span class="p">;</span>
+	<span class="k">struct</span> <span class="n">Fsret_stat</span> <span class="p">{</span>
+		<span class="kt">char</span> <span class="n">ret_name</span><span class="p">[</span><span class="n">MAXNAMELEN</span><span class="p">];</span>
+		<span class="kt">off_t</span> <span class="n">ret_size</span><span class="p">;</span>
+		<span class="kt">int</span> <span class="n">ret_isdir</span><span class="p">;</span>
+	<span class="p">}</span> <span class="n">statRet</span><span class="p">;</span>
+	<span class="k">struct</span> <span class="n">Fsreq_flush</span> <span class="p">{</span>
+		<span class="kt">int</span> <span class="n">req_fileid</span><span class="p">;</span>
+	<span class="p">}</span> <span class="n">flush</span><span class="p">;</span>
+	<span class="k">struct</span> <span class="n">Fsreq_remove</span> <span class="p">{</span>
+		<span class="kt">char</span> <span class="n">req_path</span><span class="p">[</span><span class="n">MAXPATHLEN</span><span class="p">];</span>
+	<span class="p">}</span> <span class="n">remove</span><span class="p">;</span>
+
+	<span class="c1">// Ensure Fsipc is one page</span>
+	<span class="kt">char</span> <span class="n">_pad</span><span class="p">[</span><span class="n">PGSIZE</span><span class="p">];</span>
+<span class="p">};</span>
+</code></pre></td></tr></tbody></table></div></div>
+
+<p>它是一个联合，其中的各种结构体保存了对应的文件操作需要的参数，例如<code class="language-plaintext highlighter-rouge">fsipc.read</code>就有要读取的文件的id以及读取的大小<code class="language-plaintext highlighter-rouge">req_n</code>. <strong>所以，在进程与文件系统通信的时候，两者可以共享一个保存了<code class="language-plaintext highlighter-rouge">Fsipc</code>结构的页面，从而实现参数的传递。</strong> 在<code class="language-plaintext highlighter-rouge">file.c</code>中，这个<code class="language-plaintext highlighter-rouge">Fspic</code>结构的变量名为<code class="language-plaintext highlighter-rouge">fspicbuf</code>.</p>
+
+<p><code class="language-plaintext highlighter-rouge">devfile_read</code>函数接收文件id以及读取大小，设置<code class="language-plaintext highlighter-rouge">fspicbuf</code>中对应的字段，然后调用<code class="language-plaintext highlighter-rouge">fsipc()</code>。<code class="language-plaintext highlighter-rouge">fsipc</code>接收两个参数，一个是文件操作的类型<code class="language-plaintext highlighter-rouge">type</code>，另一个是虚拟地址，这里应该传入<code class="language-plaintext highlighter-rouge">fsipcbuf</code>, 然后它会调用<code class="language-plaintext highlighter-rouge">ipc_send()</code>，其中要交换的32位值就是<code class="language-plaintext highlighter-rouge">type</code>，对于文件读取，<code class="language-plaintext highlighter-rouge">type</code>置为<code class="language-plaintext highlighter-rouge">FSREQ_READ</code>。然后继续调用<code class="language-plaintext highlighter-rouge">ipc_recv</code>等待文件系统响应。当文件系统响应后，把结果依次返回给用户进程。</p>
+
+<p>在服务端，文件系统中的<code class="language-plaintext highlighter-rouge">serve()</code>会循环调用<code class="language-plaintext highlighter-rouge">ipc_recv()</code>监听请求，接收到请求之后，它会解析请求中的<code class="language-plaintext highlighter-rouge">type</code>参数，然后具体分发到对应的handler。<code class="language-plaintext highlighter-rouge">type</code>和handler的对应关系是：</p>
+
+<div class="language-c highlighter-rouge"><div class="highlight"><table style="margin: 0px"><tbody><tr><td class="gutter"><pre>1<br/>2<br/>3<br/>4<br/>5<br/>6<br/>7<br/>8<br/>9<br/>10<br/>11</pre></td><td class="code"><pre class="highlight"><code><span class="n">fshandler</span> <span class="n">handlers</span><span class="p">[]</span> <span class="o">=</span> <span class="p">{</span>
+	<span class="c1">// Open is handled specially because it passes pages</span>
+	<span class="cm">/* [FSREQ_OPEN] =	(fshandler)serve_open, */</span>
+	<span class="p">[</span><span class="n">FSREQ_READ</span><span class="p">]</span> <span class="o">=</span>		<span class="n">serve_read</span><span class="p">,</span>
+	<span class="p">[</span><span class="n">FSREQ_STAT</span><span class="p">]</span> <span class="o">=</span>		<span class="n">serve_stat</span><span class="p">,</span>
+	<span class="p">[</span><span class="n">FSREQ_FLUSH</span><span class="p">]</span> <span class="o">=</span>		<span class="p">(</span><span class="n">fshandler</span><span class="p">)</span><span class="n">serve_flush</span><span class="p">,</span>
+	<span class="p">[</span><span class="n">FSREQ_WRITE</span><span class="p">]</span> <span class="o">=</span>		<span class="p">(</span><span class="n">fshandler</span><span class="p">)</span><span class="n">serve_write</span><span class="p">,</span>
+	<span class="p">[</span><span class="n">FSREQ_SET_SIZE</span><span class="p">]</span> <span class="o">=</span>	<span class="p">(</span><span class="n">fshandler</span><span class="p">)</span><span class="n">serve_set_size</span><span class="p">,</span>
+	<span class="p">[</span><span class="n">FSREQ_SYNC</span><span class="p">]</span> <span class="o">=</span>		<span class="n">serve_sync</span>
+<span class="p">};</span>
+
+</code></pre></td></tr></tbody></table></div></div>
+
+<p>调用<code class="language-plaintext highlighter-rouge">ipc_recv()</code>时，<code class="language-plaintext highlighter-rouge">serve</code>会传入一个参数<code class="language-plaintext highlighter-rouge">fsreq</code>，它表示文件系统接收请求进程的共享页，要将共享页映射到虚拟内存的什么位置，<code class="language-plaintext highlighter-rouge">fsreq</code>的定义是：</p>
+
+<div class="language-c highlighter-rouge"><div class="highlight"><table style="margin: 0px"><tbody><tr><td class="gutter"><pre>1<br/>2</pre></td><td class="code"><pre class="highlight"><code><span class="c1">// Virtual address at which to receive page mappings containing client requests.</span>
+<span class="k">union</span> <span class="n">Fsipc</span> <span class="o">*</span><span class="n">fsreq</span> <span class="o">=</span> <span class="p">(</span><span class="k">union</span> <span class="n">Fsipc</span> <span class="o">*</span><span class="p">)</span><span class="mh">0x0ffff000</span><span class="p">;</span>
+</code></pre></td></tr></tbody></table></div></div>
+
+<p>也是一个<code class="language-plaintext highlighter-rouge">Fsipc</code>类型的指针。通过<code class="language-plaintext highlighter-rouge">Fsipc</code>，文件系统可以接收来自客户进程的参数。</p>
+
+<p>从对应的handler返回后，<code class="language-plaintext highlighter-rouge">serve()</code>函数也负责调用<code class="language-plaintext highlighter-rouge">ipc_send()</code>将结果返回给<code class="language-plaintext highlighter-rouge">fsipc</code>。其中，交换的32位数据就是各个handler的返回状态，例如0表示成功，-E_NO_DISK表示磁盘空间不足等。<strong>在<code class="language-plaintext highlighter-rouge">handler</code>中，因为文件系统与客户进程共享<code class="language-plaintext highlighter-rouge">fsreq</code>数据结构，那么它可以将读取出来的文件数据放在<code class="language-plaintext highlighter-rouge">fsreq.readRet</code>中，这相当于一个块的缓冲区，让用户去读取。</strong> 另外，如果调用的类型是<code class="language-plaintext highlighter-rouge">FSREQ_OPEN</code>， 还会将文件描述符<code class="language-plaintext highlighter-rouge">Fd</code>结构所在的页地址放到<code class="language-plaintext highlighter-rouge">pg</code>中，与用户进程共享。</p>
+
+<h3 id="serve_set_size阅读">serve_set_size()阅读</h3>
+
+<p>这个函数是将<code class="language-plaintext highlighter-rouge">fs.c</code>中的<code class="language-plaintext highlighter-rouge">file_set_size()</code>函数封装成一个handler，所有的handler调用入口都是<code class="language-plaintext highlighter-rouge">serve</code>函数。除了<code class="language-plaintext highlighter-rouge">serve_open</code>以外，所有的handler都只接受两个参数，一个是服务请求者的进程ID（<code class="language-plaintext highlighter-rouge">envid</code>或者<code class="language-plaintext highlighter-rouge">whom</code>），另一个是与请求者共享的<code class="language-plaintext highlighter-rouge">fsreq</code>页，上面保存了调用的参数。</p>
+
+<div class="language-c highlighter-rouge"><div class="highlight"><table style="margin: 0px"><tbody><tr><td class="gutter"><pre>1<br/>2<br/>3<br/>4<br/>5<br/>6<br/>7<br/>8<br/>9<br/>10<br/>11<br/>12<br/>13<br/>14<br/>15<br/>16<br/>17<br/>18<br/>19<br/>20<br/>21<br/>22<br/>23<br/>24<br/>25<br/>26<br/>27<br/>28<br/>29<br/>30<br/>31<br/>32<br/>33<br/>34</pre></td><td class="code"><pre class="highlight"><code><span class="kt">void</span>
+<span class="nf">serve</span><span class="p">(</span><span class="kt">void</span><span class="p">)</span>
+<span class="p">{</span>
+	<span class="kt">uint32_t</span> <span class="n">req</span><span class="p">,</span> <span class="n">whom</span><span class="p">;</span>
+	<span class="kt">int</span> <span class="n">perm</span><span class="p">,</span> <span class="n">r</span><span class="p">;</span>
+	<span class="kt">void</span> <span class="o">*</span><span class="n">pg</span><span class="p">;</span>
+
+	<span class="k">while</span> <span class="p">(</span><span class="mi">1</span><span class="p">)</span> <span class="p">{</span>
+		<span class="n">perm</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+		<span class="n">req</span> <span class="o">=</span> <span class="n">ipc_recv</span><span class="p">((</span><span class="kt">int32_t</span> <span class="o">*</span><span class="p">)</span> <span class="o">&amp;</span><span class="n">whom</span><span class="p">,</span> <span class="n">fsreq</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">perm</span><span class="p">);</span>
+		<span class="k">if</span> <span class="p">(</span><span class="n">debug</span><span class="p">)</span>
+			<span class="n">cprintf</span><span class="p">(</span><span class="s">"fs req %d from %08x [page %08x: %s]</span><span class="se">\n</span><span class="s">"</span><span class="p">,</span>
+				<span class="n">req</span><span class="p">,</span> <span class="n">whom</span><span class="p">,</span> <span class="n">uvpt</span><span class="p">[</span><span class="n">PGNUM</span><span class="p">(</span><span class="n">fsreq</span><span class="p">)],</span> <span class="n">fsreq</span><span class="p">);</span>
+
+		<span class="c1">// All requests must contain an argument page</span>
+		<span class="k">if</span> <span class="p">(</span><span class="o">!</span><span class="p">(</span><span class="n">perm</span> <span class="o">&amp;</span> <span class="n">PTE_P</span><span class="p">))</span> <span class="p">{</span>
+			<span class="n">cprintf</span><span class="p">(</span><span class="s">"Invalid request from %08x: no argument page</span><span class="se">\n</span><span class="s">"</span><span class="p">,</span>
+				<span class="n">whom</span><span class="p">);</span>
+			<span class="k">continue</span><span class="p">;</span> <span class="c1">// just leave it hanging...</span>
+		<span class="p">}</span>
+
+		<span class="n">pg</span> <span class="o">=</span> <span class="nb">NULL</span><span class="p">;</span>
+		<span class="k">if</span> <span class="p">(</span><span class="n">req</span> <span class="o">==</span> <span class="n">FSREQ_OPEN</span><span class="p">)</span> <span class="p">{</span>
+			<span class="n">r</span> <span class="o">=</span> <span class="n">serve_open</span><span class="p">(</span><span class="n">whom</span><span class="p">,</span> <span class="p">(</span><span class="k">struct</span> <span class="n">Fsreq_open</span><span class="o">*</span><span class="p">)</span><span class="n">fsreq</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">pg</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">perm</span><span class="p">);</span>
+		<span class="p">}</span> <span class="k">else</span> <span class="k">if</span> <span class="p">(</span><span class="n">req</span> <span class="o">&lt;</span> <span class="n">ARRAY_SIZE</span><span class="p">(</span><span class="n">handlers</span><span class="p">)</span> <span class="o">&amp;&amp;</span> <span class="n">handlers</span><span class="p">[</span><span class="n">req</span><span class="p">])</span> <span class="p">{</span>
+			<span class="n">r</span> <span class="o">=</span> <span class="n">handlers</span><span class="p">[</span><span class="n">req</span><span class="p">](</span><span class="n">whom</span><span class="p">,</span> <span class="n">fsreq</span><span class="p">);</span>
+		<span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+			<span class="n">cprintf</span><span class="p">(</span><span class="s">"Invalid request code %d from %08x</span><span class="se">\n</span><span class="s">"</span><span class="p">,</span> <span class="n">req</span><span class="p">,</span> <span class="n">whom</span><span class="p">);</span>
+			<span class="n">r</span> <span class="o">=</span> <span class="o">-</span><span class="n">E_INVAL</span><span class="p">;</span>
+		<span class="p">}</span>
+		<span class="n">ipc_send</span><span class="p">(</span><span class="n">whom</span><span class="p">,</span> <span class="n">r</span><span class="p">,</span> <span class="n">pg</span><span class="p">,</span> <span class="n">perm</span><span class="p">);</span>
+		<span class="n">sys_page_unmap</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">fsreq</span><span class="p">);</span>
+	<span class="p">}</span>
+<span class="p">}</span>
+</code></pre></td></tr></tbody></table></div></div>
+
+<p><code class="language-plaintext highlighter-rouge">serve_set_size</code>中，<code class="language-plaintext highlighter-rouge">fsreq</code>union中只包含了<code class="language-plaintext highlighter-rouge">set_size</code>结构体，可以通过<code class="language-plaintext highlighter-rouge">req-&gt;req_fileid</code>获取文件id，<code class="language-plaintext highlighter-rouge">req-&gt;req_size</code>获取要设置的文件大小。</p>
+
+<p>首先调用<code class="language-plaintext highlighter-rouge">openfile_lookup</code>来判断该进程是否打开了该文件。<strong>内核维护了系统中所有被打开的文件在<code class="language-plaintext highlighter-rouge">opentab</code>数组中，而每一个进程也维护了自己打开文件的描述符</strong>。</p>
+
+<p>如果进程未打开文件，不可以调用<code class="language-plaintext highlighter-rouge">set_file_size()</code>，返回错误码。否则，<code class="language-plaintext highlighter-rouge">openfile_lookup</code>会将该文件的描述符保存在<code class="language-plaintext highlighter-rouge">o</code>中，通过<code class="language-plaintext highlighter-rouge">o-&gt;o_file</code>就可以获取该文件的元数据指针。直接调用<code class="language-plaintext highlighter-rouge">file_set_size</code>并返回返回值即可。<code class="language-plaintext highlighter-rouge">set_size</code>不需要为用户进程提供文件数据，只需要交换一个操作成功与否的状态信息。</p>
+
+<div class="language-c highlighter-rouge"><div class="highlight"><table style="margin: 0px"><tbody><tr><td class="gutter"><pre>1<br/>2<br/>3<br/>4<br/>5<br/>6<br/>7<br/>8<br/>9<br/>10<br/>11<br/>12<br/>13<br/>14<br/>15<br/>16<br/>17<br/>18<br/>19<br/>20<br/>21<br/>22<br/>23</pre></td><td class="code"><pre class="highlight"><code><span class="c1">// Set the size of req-&gt;req_fileid to req-&gt;req_size bytes, truncating</span>
+<span class="c1">// or extending the file as necessary.</span>
+<span class="kt">int</span>
+<span class="nf">serve_set_size</span><span class="p">(</span><span class="n">envid_t</span> <span class="n">envid</span><span class="p">,</span> <span class="k">struct</span> <span class="n">Fsreq_set_size</span> <span class="o">*</span><span class="n">req</span><span class="p">)</span>
+<span class="p">{</span>
+	<span class="k">struct</span> <span class="n">OpenFile</span> <span class="o">*</span><span class="n">o</span><span class="p">;</span>
+	<span class="kt">int</span> <span class="n">r</span><span class="p">;</span>
+
+	<span class="k">if</span> <span class="p">(</span><span class="n">debug</span><span class="p">)</span>
+		<span class="n">cprintf</span><span class="p">(</span><span class="s">"serve_set_size %08x %08x %08x</span><span class="se">\n</span><span class="s">"</span><span class="p">,</span> <span class="n">envid</span><span class="p">,</span> <span class="n">req</span><span class="o">-&gt;</span><span class="n">req_fileid</span><span class="p">,</span> <span class="n">req</span><span class="o">-&gt;</span><span class="n">req_size</span><span class="p">);</span>
+
+	<span class="c1">// Every file system IPC call has the same general structure.</span>
+	<span class="c1">// Here's how it goes.</span>
+
+	<span class="c1">// First, use openfile_lookup to find the relevant open file.</span>
+	<span class="c1">// On failure, return the error code to the client with ipc_send.</span>
+	<span class="k">if</span> <span class="p">((</span><span class="n">r</span> <span class="o">=</span> <span class="n">openfile_lookup</span><span class="p">(</span><span class="n">envid</span><span class="p">,</span> <span class="n">req</span><span class="o">-&gt;</span><span class="n">req_fileid</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">o</span><span class="p">))</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">)</span>
+		<span class="k">return</span> <span class="n">r</span><span class="p">;</span>
+
+	<span class="c1">// Second, call the relevant file system function (from fs/fs.c).</span>
+	<span class="c1">// On failure, return the error code to the client.</span>
+	<span class="k">return</span> <span class="n">file_set_size</span><span class="p">(</span><span class="n">o</span><span class="o">-&gt;</span><span class="n">o_file</span><span class="p">,</span> <span class="n">req</span><span class="o">-&gt;</span><span class="n">req_size</span><span class="p">);</span>
+<span class="p">}</span>
+</code></pre></td></tr></tbody></table></div></div>
+
+<h3 id="serve_read">serve_read()</h3>
+
+<p><code class="language-plaintext highlighter-rouge">serve_read</code>处理读取文件的请求。它基于<code class="language-plaintext highlighter-rouge">fs.c</code>中实现的<code class="language-plaintext highlighter-rouge">file_read</code>函数，接收进程的id以及调用参数结构<code class="language-plaintext highlighter-rouge">Fsipc</code>，从文件的当前光标处读取文件的<code class="language-plaintext highlighter-rouge">req_n</code>个字节，到缓冲区<code class="language-plaintext highlighter-rouge">readRet.ret_buf</code>中，并更新文件光标的位置。如果成功，返回实际读取的字节数，否则返回错误号码。</p>
+
+<p>它的实现过程是：</p>
+
+<ul>
+  <li>
+    <p>首先从与客户端共享的调用参数页<code class="language-plaintext highlighter-rouge">ipc</code>中，获取调用参数。因为是read操作，所以<code class="language-plaintext highlighter-rouge">fsipc</code>中保存的是<code class="language-plaintext highlighter-rouge">REQ_READ</code>结构体：</p>
+
+    <ul>
+      <li>
+        <div class="language-c highlighter-rouge"><div class="highlight"><table style="margin: 0px"><tbody><tr><td class="gutter"><pre>1<br/>2<br/>3<br/>4</pre></td><td class="code"><pre class="highlight"><code><span class="k">struct</span> <span class="n">Fsreq_read</span> <span class="p">{</span>
+		<span class="kt">int</span> <span class="n">req_fileid</span><span class="p">;</span>
+		<span class="kt">size_t</span> <span class="n">req_n</span><span class="p">;</span>
+	<span class="p">}</span> <span class="n">read</span><span class="p">;</span>
+</code></pre></td></tr></tbody></table></div>        </div>
+      </li>
+    </ul>
+  </li>
+  <li>
+    <p>返回的时候，要填充<code class="language-plaintext highlighter-rouge">fspic</code>中的<code class="language-plaintext highlighter-rouge">readRet</code>结构体中的<code class="language-plaintext highlighter-rouge">ret_buf</code>，而因为缓冲区的大小只有一页，所以一次devfile_read调用读取的字节数不可以超过4096字节。readRet结构体的定义：</p>
+
+    <ul>
+      <li>
+        <div class="language-c highlighter-rouge"><div class="highlight"><table style="margin: 0px"><tbody><tr><td class="gutter"><pre>1<br/>2<br/>3</pre></td><td class="code"><pre class="highlight"><code><span class="k">struct</span> <span class="n">Fsret_read</span> <span class="p">{</span>
+		<span class="kt">char</span> <span class="n">ret_buf</span><span class="p">[</span><span class="n">PGSIZE</span><span class="p">];</span>
+	<span class="p">}</span> <span class="n">readRet</span><span class="p">;</span>
+</code></pre></td></tr></tbody></table></div>        </div>
+      </li>
+    </ul>
+  </li>
+  <li>
+    <p>调用<code class="language-plaintext highlighter-rouge">openfile_lookup</code>找到该打开文件的<code class="language-plaintext highlighter-rouge">openFile</code>结构体。如果返回值小于0，说明发生错误，返回错误码。</p>
+  </li>
+  <li>
+    <p><code class="language-plaintext highlighter-rouge">OpenFile</code>结构体中的o_file保存了文件的元数据指针，o_fd指向磁盘上的文件描述符结构<code class="language-plaintext highlighter-rouge">Fd</code>，而<code class="language-plaintext highlighter-rouge">Fd</code>保存了fd_offset,表示文件当前的光标位置。</p>
+  </li>
+  <li>
+    <p>调用<code class="language-plaintext highlighter-rouge">file_read()</code>，它需要四个参数：文件元数据指针，读取数据的缓冲区，读取数据字节数，读取开始的offset。<code class="language-plaintext highlighter-rouge">read()</code>调用隐式地从文件光标处读取n个字节，所以<code class="language-plaintext highlighter-rouge">offset</code>参数可以通过<code class="language-plaintext highlighter-rouge">o-&gt;o_fd-&gt;fd_offset</code>获得。缓冲区是<code class="language-plaintext highlighter-rouge">ret-&gt;ret_buf</code>。</p>
+  </li>
+  <li>
+    <p>读取失败的话返回错误码，否则将文件光标移动到读取完成的位置。</p>
+  </li>
+  <li>
+    <p>返回实际读取的字节数。</p>
+  </li>
+</ul>
+
+<div class="language-c highlighter-rouge"><div class="highlight"><table style="margin: 0px"><tbody><tr><td class="gutter"><pre>1<br/>2<br/>3<br/>4<br/>5<br/>6<br/>7<br/>8<br/>9<br/>10<br/>11<br/>12<br/>13<br/>14<br/>15<br/>16<br/>17<br/>18<br/>19<br/>20<br/>21</pre></td><td class="code"><pre class="highlight"><code><span class="kt">int</span>
+<span class="nf">serve_read</span><span class="p">(</span><span class="n">envid_t</span> <span class="n">envid</span><span class="p">,</span> <span class="k">union</span> <span class="n">Fsipc</span> <span class="o">*</span><span class="n">ipc</span><span class="p">)</span>
+<span class="p">{</span>
+	<span class="k">struct</span> <span class="n">Fsreq_read</span> <span class="o">*</span><span class="n">req</span> <span class="o">=</span> <span class="o">&amp;</span><span class="n">ipc</span><span class="o">-&gt;</span><span class="n">read</span><span class="p">;</span>
+	<span class="k">struct</span> <span class="n">Fsret_read</span> <span class="o">*</span><span class="n">ret</span> <span class="o">=</span> <span class="o">&amp;</span><span class="n">ipc</span><span class="o">-&gt;</span><span class="n">readRet</span><span class="p">;</span>
+	<span class="k">struct</span> <span class="n">OpenFile</span> <span class="o">*</span><span class="n">o</span><span class="p">;</span>
+	<span class="kt">int</span> <span class="n">r</span><span class="p">;</span>
+
+	<span class="k">if</span> <span class="p">(</span><span class="n">debug</span><span class="p">)</span>
+		<span class="n">cprintf</span><span class="p">(</span><span class="s">"serve_read %08x %08x %08x</span><span class="se">\n</span><span class="s">"</span><span class="p">,</span> <span class="n">envid</span><span class="p">,</span> <span class="n">req</span><span class="o">-&gt;</span><span class="n">req_fileid</span><span class="p">,</span> <span class="n">req</span><span class="o">-&gt;</span><span class="n">req_n</span><span class="p">);</span>
+
+	<span class="c1">// Lab 5: Your code here:</span>
+	<span class="k">if</span><span class="p">((</span><span class="n">r</span> <span class="o">=</span> <span class="n">openfile_lookup</span><span class="p">(</span><span class="n">envid</span><span class="p">,</span> <span class="n">req</span><span class="o">-&gt;</span><span class="n">req_fileid</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">o</span><span class="p">))</span><span class="o">&lt;</span><span class="mi">0</span><span class="p">)</span>
+		<span class="k">return</span> <span class="n">r</span><span class="p">;</span>
+	
+	<span class="k">if</span><span class="p">((</span><span class="n">r</span> <span class="o">=</span> <span class="n">file_read</span><span class="p">(</span><span class="n">o</span><span class="o">-&gt;</span><span class="n">o_file</span><span class="p">,</span> <span class="n">ret</span><span class="o">-&gt;</span><span class="n">ret_buf</span><span class="p">,</span> <span class="n">req</span><span class="o">-&gt;</span><span class="n">req_n</span><span class="p">,</span> <span class="n">o</span><span class="o">-&gt;</span><span class="n">o_fd</span><span class="o">-&gt;</span><span class="n">fd_offset</span><span class="p">))</span><span class="o">&lt;</span><span class="mi">0</span><span class="p">)</span>
+		<span class="k">return</span> <span class="n">r</span><span class="p">;</span>
+	<span class="n">o</span><span class="o">-&gt;</span><span class="n">o_fd</span><span class="o">-&gt;</span><span class="n">fd_offset</span><span class="o">+=</span><span class="n">r</span><span class="p">;</span>		 
+	<span class="k">return</span> <span class="n">r</span><span class="p">;</span>
+
+<span class="p">}</span>
+</code></pre></td></tr></tbody></table></div></div>
+
+<h3 id="检查-4">检查</h3>
+
+<p><code class="language-plaintext highlighter-rouge">file_read</code>OK， 实现正确。</p>
+
+<hr />
+
+<h2 id="todo6">TODO6:</h2>
+
+<blockquote>
+  <p>​     在fs/serv.c中实现serve-write，在lib/file.c中实现devfile-write</p>
+</blockquote>
+
+<h3 id="serve_write">serve_write()</h3>
+
+<p>根据注释，serve_write()的功能应该是接收进程的id<code class="language-plaintext highlighter-rouge">envid</code>和写请求的参数：</p>
+
+<div class="language-c highlighter-rouge"><div class="highlight"><table style="margin: 0px"><tbody><tr><td class="gutter"><pre>1<br/>2<br/>3<br/>4<br/>5</pre></td><td class="code"><pre class="highlight"><code><span class="k">struct</span> <span class="n">Fsreq_write</span> <span class="p">{</span>
+		<span class="kt">int</span> <span class="n">req_fileid</span><span class="p">;</span>
+		<span class="kt">size_t</span> <span class="n">req_n</span><span class="p">;</span>
+		<span class="kt">char</span> <span class="n">req_buf</span><span class="p">[</span><span class="n">PGSIZE</span> <span class="o">-</span> <span class="p">(</span><span class="k">sizeof</span><span class="p">(</span><span class="kt">int</span><span class="p">)</span> <span class="o">+</span> <span class="k">sizeof</span><span class="p">(</span><span class="kt">size_t</span><span class="p">))];</span>
+	<span class="p">}</span> <span class="n">write</span><span class="p">;</span>
+</code></pre></td></tr></tbody></table></div></div>
+
+<p>将<code class="language-plaintext highlighter-rouge">req_buf</code>中的<code class="language-plaintext highlighter-rouge">req_n</code>个字节的内容写到对应文件的光标开始处。<code class="language-plaintext highlighter-rouge">req_buf</code>的大小是<code class="language-plaintext highlighter-rouge">PGSIZE-(sizeof(int) + sizeof(size_t))</code>， 这是为了保证<code class="language-plaintext highlighter-rouge">fsipc</code>结构可以与页的大小对齐。<code class="language-plaintext highlighter-rouge">req_n</code>的大小只能小于或等于<code class="language-plaintext highlighter-rouge">req_buf</code>的固定大小。也就是一次请求不会超过一个块。</p>
+
+<p><code class="language-plaintext highlighter-rouge">serve_write</code>可以通过<code class="language-plaintext highlighter-rouge">file_write()</code>来实现，<code class="language-plaintext highlighter-rouge">file_write</code>没有大小的限制，传给<code class="language-plaintext highlighter-rouge">file_write</code>的count大小只要不要超过文件最大大小的范围即可。<code class="language-plaintext highlighter-rouge">file_write</code>也已经提供了自动扩展文件大小的功能。根据函数的语义，<code class="language-plaintext highlighter-rouge">serve_write()</code>的实现为：</p>
+
+<div class="language-c highlighter-rouge"><div class="highlight"><table style="margin: 0px"><tbody><tr><td class="gutter"><pre>1<br/>2<br/>3<br/>4<br/>5<br/>6<br/>7<br/>8<br/>9<br/>10<br/>11<br/>12<br/>13<br/>14<br/>15<br/>16<br/>17<br/>18</pre></td><td class="code"><pre class="highlight"><code><span class="kt">int</span>
+<span class="nf">serve_write</span><span class="p">(</span><span class="n">envid_t</span> <span class="n">envid</span><span class="p">,</span> <span class="k">struct</span> <span class="n">Fsreq_write</span> <span class="o">*</span><span class="n">req</span><span class="p">)</span>
+<span class="p">{</span>
+	<span class="kt">int</span> <span class="n">r</span><span class="p">;</span>
+	<span class="k">struct</span> <span class="n">OpenFile</span> <span class="o">*</span><span class="n">o</span><span class="p">;</span>
+
+	<span class="k">if</span> <span class="p">(</span><span class="n">debug</span><span class="p">)</span>
+		<span class="n">cprintf</span><span class="p">(</span><span class="s">"serve_write %08x %08x %08x</span><span class="se">\n</span><span class="s">"</span><span class="p">,</span> <span class="n">envid</span><span class="p">,</span> <span class="n">req</span><span class="o">-&gt;</span><span class="n">req_fileid</span><span class="p">,</span> <span class="n">req</span><span class="o">-&gt;</span><span class="n">req_n</span><span class="p">);</span>
+
+	<span class="c1">// LAB 5: Your code here.</span>
+	<span class="k">if</span><span class="p">((</span><span class="n">r</span> <span class="o">=</span> <span class="n">openfile_lookup</span><span class="p">(</span><span class="n">envid</span><span class="p">,</span> <span class="n">req</span><span class="o">-&gt;</span><span class="n">req_fileid</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">o</span><span class="p">))</span><span class="o">&lt;</span><span class="mi">0</span><span class="p">)</span>
+		<span class="k">return</span> <span class="n">r</span><span class="p">;</span>
+	<span class="k">if</span><span class="p">((</span><span class="n">r</span> <span class="o">=</span> <span class="n">file_write</span><span class="p">(</span><span class="n">o</span><span class="o">-&gt;</span><span class="n">o_file</span><span class="p">,</span> <span class="n">req</span><span class="o">-&gt;</span><span class="n">req_buf</span><span class="p">,</span> <span class="n">req</span><span class="o">-&gt;</span><span class="n">req_n</span><span class="p">,</span> <span class="n">o</span><span class="o">-&gt;</span><span class="n">o_fd</span><span class="o">-&gt;</span><span class="n">fd_offset</span><span class="p">))</span><span class="o">&lt;</span><span class="mi">0</span><span class="p">)</span>
+		<span class="k">return</span> <span class="n">r</span><span class="p">;</span>
+	<span class="n">o</span><span class="o">-&gt;</span><span class="n">o_fd</span><span class="o">-&gt;</span><span class="n">fd_offset</span> <span class="o">+=</span> <span class="n">r</span><span class="p">;</span>
+	<span class="k">return</span> <span class="n">r</span><span class="p">;</span> 
+<span class="p">}</span>
+
+</code></pre></td></tr></tbody></table></div></div>
+
+<h3 id="devfile_write">devfile_write()</h3>
+
+<p><code class="language-plaintext highlighter-rouge">devfile_write()</code>处理用户程序发出的写请求，<code class="language-plaintext highlighter-rouge">req_n</code>不能超过<code class="language-plaintext highlighter-rouge">req_buf</code>大小的条件在这个函数中检查。它将文件的id，请求写字节数和缓冲区保存到<code class="language-plaintext highlighter-rouge">fsipcbuf</code>的<code class="language-plaintext highlighter-rouge">write</code>结构中，调用<code class="language-plaintext highlighter-rouge">fsipc()</code>函数发送ipc请求，并共享<code class="language-plaintext highlighter-rouge">fsipcbuf</code>页传递参数，把<code class="language-plaintext highlighter-rouge">fsipc</code>的返回值直接返回给用户进程。</p>
+
+<p>decfile_write的实现过程为：</p>
+
+<ul>
+  <li>判断请求的字节数<code class="language-plaintext highlighter-rouge">n</code>是否比缓冲区大小（<code class="language-plaintext highlighter-rouge">PGSIZE - (sizeof(int) + sizeof(size_t)</code>)大，如果超出，设置为缓冲区大小。</li>
+  <li>将<code class="language-plaintext highlighter-rouge">fsipcbuf.write.req_fileid</code>保存为用户进程请求的文件id。由于用户进程传给<code class="language-plaintext highlighter-rouge">devfile_write</code>的是文件的描述符指针，所以通过<code class="language-plaintext highlighter-rouge">fd-&gt;fd_file.id</code>来获得该文件id。</li>
+  <li>将<code class="language-plaintext highlighter-rouge">fsipcbuf.write.req_n</code>设置为请求字节数n（不超过缓冲区大小）</li>
+  <li>将用户传递进来的<code class="language-plaintext highlighter-rouge">buf</code>中的前<code class="language-plaintext highlighter-rouge">n</code>个字节，复制到<code class="language-plaintext highlighter-rouge">fsipcbuf.write.req_buf</code>中，这个复制使用<code class="language-plaintext highlighter-rouge">memmove</code>。</li>
+  <li>调用<code class="language-plaintext highlighter-rouge">fsipc()</code>发起请求并返回。 这个调用的类型为写操作<code class="language-plaintext highlighter-rouge">FSREQ_WRITE</code>， 操作类型将由文件系统的<code class="language-plaintext highlighter-rouge">serve()</code>接收，分发到对应的<code class="language-plaintext highlighter-rouge">serve_write</code>函数。它不需要从文件系统那里共享页（因为不需要读取文件的内容），所以共享页虚拟地址为NULL。（<code class="language-plaintext highlighter-rouge">fsipc</code>会在<code class="language-plaintext highlighter-rouge">ipc_send</code>的时候与文件系统共享<code class="language-plaintext highlighter-rouge">fsipcbuf</code>页）。</li>
+</ul>
+
+<div class="language-c highlighter-rouge"><div class="highlight"><table style="margin: 0px"><tbody><tr><td class="gutter"><pre>1<br/>2<br/>3<br/>4<br/>5<br/>6<br/>7<br/>8<br/>9<br/>10<br/>11<br/>12<br/>13<br/>14<br/>15<br/>16</pre></td><td class="code"><pre class="highlight"><code><span class="k">static</span> <span class="kt">ssize_t</span>
+<span class="nf">devfile_write</span><span class="p">(</span><span class="k">struct</span> <span class="n">Fd</span> <span class="o">*</span><span class="n">fd</span><span class="p">,</span> <span class="k">const</span> <span class="kt">void</span> <span class="o">*</span><span class="n">buf</span><span class="p">,</span> <span class="kt">size_t</span> <span class="n">n</span><span class="p">)</span>
+<span class="p">{</span>
+	<span class="c1">// Make an FSREQ_WRITE request to the file system server.  Be</span>
+	<span class="c1">// careful: fsipcbuf.write.req_buf is only so large, but</span>
+	<span class="c1">// remember that write is always allowed to write *fewer*</span>
+	<span class="c1">// bytes than requested.</span>
+	<span class="c1">// LAB 5: Your code here</span>
+        <span class="kt">uint32_t</span> <span class="n">max_n</span> <span class="o">=</span> <span class="n">PGSIZE</span> <span class="o">-</span> <span class="p">(</span><span class="k">sizeof</span><span class="p">(</span><span class="kt">int</span><span class="p">)</span> <span class="o">+</span> <span class="k">sizeof</span><span class="p">(</span><span class="kt">size_t</span><span class="p">));</span>
+        <span class="n">n</span> <span class="o">=</span> <span class="n">n</span> <span class="o">&gt;</span> <span class="n">max_n</span> <span class="o">?</span> <span class="n">max_n</span> <span class="o">:</span> <span class="n">n</span><span class="p">;</span>
+
+    	<span class="n">fsipcbuf</span><span class="p">.</span><span class="n">write</span><span class="p">.</span><span class="n">req_fileid</span> <span class="o">=</span> <span class="n">fd</span><span class="o">-&gt;</span><span class="n">fd_file</span><span class="p">.</span><span class="n">id</span><span class="p">;</span>
+    	<span class="n">fsipcbuf</span><span class="p">.</span><span class="n">write</span><span class="p">.</span><span class="n">req_n</span> <span class="o">=</span> <span class="n">n</span><span class="p">;</span>
+    	<span class="n">memmove</span><span class="p">(</span><span class="n">fsipcbuf</span><span class="p">.</span><span class="n">write</span><span class="p">.</span><span class="n">req_buf</span><span class="p">,</span> <span class="n">buf</span><span class="p">,</span> <span class="n">n</span><span class="p">);</span>
+    	<span class="k">return</span> <span class="n">fsipc</span><span class="p">(</span><span class="n">FSREQ_WRITE</span><span class="p">,</span> <span class="nb">NULL</span><span class="p">);</span>
+<span class="p">}</span>
+</code></pre></td></tr></tbody></table></div></div>
+
+<h3 id="检查-5">检查</h3>
+
+<p>本次实验所有实现的函数检查都<code class="language-plaintext highlighter-rouge">OK</code>.</p>
+
+<h2 id="总结">总结</h2>
+
+<p>文件系统负责文件的管理，它通过索引、链表、连续分配等方式组织文件，将文件内的逻辑地址映射到磁盘上的物理块地址；它通过bitmap、空闲块链表等数据结构维护磁盘上的空闲块，实现对磁盘空闲空间的管理；它直接与设备驱动程序（JOS）或者间接与设备驱动程序（UNIX系统中，设备驱动程序的操作封装为系统调用）交互，并通过逻辑地址到物理地址的转换，为用户提供了方便简单且统一的接口，以及一个直观的文件系统界面。</p>
+
+<p>JOS的文件系统通过bitmap来管理空闲空间，当文件系统的大小为3GB时，bitmap的大小为24块。通过间接索引结构来组织文件，文件元数据中保存索引，来完成文件逻辑地址到磁盘物理地址的转换。文件系统中的每一个文件都有一个id标识，保存在文件描述符中，文件描述符表位于磁盘上，描述了文件的id、是否打开、设备以及偏移位置等。内核维护打开的文件描述符表，该结构可以通过打开的文件id找到对应的文件描述符，并保存了文件的元数据指针等变量。</p>
+
+<p>文件块的读取是按需读取的，只有当一个块被用户请求时，文件系统引用该块对应的虚拟地址，会发生页错误，然后才将该块从磁盘上读取到内存。文件系统拥有IO权限，所以可以访问设备驱动程序，调用它的读和写函数。 文件的修改用了 延迟写回的策略， 修改暂时修改在内存中，只有在必要时，会将PTE_D标记为脏的内存页面写回到磁盘上。</p>
+
+<p>JOS中的文件系统是一个特殊的用户进程，它将磁盘地址映射到自己的虚拟地址空间上进行方便的管理，并通过自定义页错误处理程序完成磁盘块到内存的数据转移。通过IPC进程间通信机制，使得用户进程可以调用定义在文件系统进程内的过程，从而为用户进程提供系统调用的接口。</p>
+
+
+
+      
+    </div>
+
+    <div>
+      
+        
+
+      
+    </div>
+
+    <div>
+      
+        
+
+      
+    </div>
+
+    <div>
+      
+        
+
+      
+    </div>
+
+    <footer class="post-footer">
+      
+        <div class="post-tags">
+          
+            
+            <a href="/tag/#/OS" rel="tag"># OS</a>
+          
+            
+            <a href="/tag/#/JOS" rel="tag"># JOS</a>
+          
+        </div>
+      
+
+      
+      
+      
+      
+      
+
+      
+      
+        <div class="post-nav" id="post-nav-id">
+          <div class="post-nav-next post-nav-item">
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+              <a href="/lab%20report/2020/02/01/OS5memory/" rel="prev" title="MIT 6.828 JOS 内存管理详解 操作系统实验5">
+                MIT 6.828 JOS 内存管理详解 操作系统实验5 <i class="fa fa-chevron-right"></i>
+              </a>
+            
+          </div>
+        </div>
+      
+      
+
+      
+    </footer>
+  </article>
+
+  <div class="post-spread">
+    
+  </div>
+</div>
+
+
+          </div>
+          
+
+
+          
+  <div class="comments" id="comments">
+    
+      <div class="wildfire_thread"></div>
+    
+  </div>
+
+
+        </div>
+        
+          
+
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    <div class="sidebar-inner">
+
+      
+        
+        
+        
+
+
+
+
+
+
+
+      
+
+      
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap" >
+            Table of Contents
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview">
+            Overview
+          </li>
+        </ul>
+      
+
+      <section class="site-overview sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+          <img class="site-author-image" itemprop="image"
+               src="/assets/images/avatar.jpg"
+               alt="Shutong Chen" />
+          <p class="site-author-name" itemprop="name">Shutong Chen</p>
+           
+              <p class="site-description motion-element" itemprop="description"></p>
+           
+        </div>
+        <nav class="site-state motion-element">
+
+          
+            <div class="site-state-item site-state-posts">
+              <a href="/archives/">
+                <span class="site-state-item-count">6</span>
+                <span class="site-state-item-name">posts</span>
+              </a>
+            </div>
+          
+
+          
+            
+            
+            <div class="site-state-item site-state-categories">
+              <a href="/categories/">
+                <span class="site-state-item-count">2</span>
+                <span class="site-state-item-name">categories</span>
+              </a>
+            </div>
+          
+
+          
+            
+            
+            <div class="site-state-item site-state-tags">
+              <a href="/tags/">
+                <span class="site-state-item-count">6</span>
+                <span class="site-state-item-name">tags</span>
+              </a>
+            </div>
+          
+
+        </nav>
+
+        
+        
+        
+          <div class="feed-link motion-element">
+            <a href="/atom.xml" rel="alternate">
+              <i class="fa fa-rss"></i>
+              RSS
+            </a>
+          </div>
+        
+
+        <div class="links-of-author motion-element">
+          
+            
+              
+              
+              <span class="links-of-author-item">
+                <a href="https://github.com/sillywutong" target="_blank" title="GitHub">
+                  
+                    <i class="fa fa-fw fa-github"></i>
+                  
+                  GitHub
+                </a>
+              </span>
+            
+              
+              
+              <span class="links-of-author-item">
+                <a href="https://weibo.com/sillywutong" target="_blank" title="微博">
+                  
+                    <i class="fa fa-fw fa-globe"></i>
+                  
+                  微博
+                </a>
+              </span>
+            
+          
+        </div>
+
+        
+        
+
+        
+        
+
+        
+
+
+      </section>
+
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+            
+            
+            
+
+
+
+
+
+
+
+
+            
+              <div class="post-toc-content">
+    <ol class=nav>
+      <li class="nav-item nav-level-1"> <a class="nav-link" href="#lab6文件系统实现"> <span class="nav-number">1</span> <span class="nav-text">Lab6：文件系统实现</span> </a> <ol class="nav-child"> <li class="nav-item nav-level-2"> <a class="nav-link" href="#磁盘上的文件系统结构"> <span class="nav-number">1.1</span> <span class="nav-text">磁盘上的文件系统结构</span> </a> <ol class="nav-child"> <li class="nav-item nav-level-3"> <a class="nav-link" href="#超级块"> <span class="nav-number">1.1.1</span> <span class="nav-text">超级块</span> </a> </li> <li class="nav-item nav-level-3"> <a class="nav-link" href="#文件元数据"> <span class="nav-number">1.1.2</span> <span class="nav-text">文件元数据</span> </a> </li> <li class="nav-item nav-level-3"> <a class="nav-link" href="#目录文件"> <span class="nav-number">1.1.3</span> <span class="nav-text">目录文件</span> </a> </li> <li class="nav-item nav-level-3"> <a class="nav-link" href="#磁盘空间管理"> <span class="nav-number">1.1.4</span> <span class="nav-text">磁盘空间管理</span> </a> </li> <li class="nav-item nav-level-3"> <a class="nav-link" href="#访问磁盘"> <span class="nav-number">1.1.5</span> <span class="nav-text">访问磁盘</span> </a> </li> </ol> </li> <li class="nav-item nav-level-2"> <a class="nav-link" href="#todo1"> <span class="nav-number">1.2</span> <span class="nav-text">TODO1:</span> </a> <ol class="nav-child"> <li class="nav-item nav-level-3"> <a class="nav-link" href="#检查"> <span class="nav-number">1.2.1</span> <span class="nav-text">检查</span> </a> </li> </ol> </li> <li class="nav-item nav-level-2"> <a class="nav-link" href="#todo2"> <span class="nav-number">1.3</span> <span class="nav-text">TODO2:</span> </a> <ol class="nav-child"> <li class="nav-item nav-level-3"> <a class="nav-link" href="#bc_pgfault"> <span class="nav-number">1.3.1</span> <span class="nav-text">bc_pgfault()</span> </a> </li> <li class="nav-item nav-level-3"> <a class="nav-link" href="#flush_block"> <span class="nav-number">1.3.2</span> <span class="nav-text">flush_block</span> </a> </li> <li class="nav-item nav-level-3"> <a class="nav-link" href="#检查-1"> <span class="nav-number">1.3.3</span> <span class="nav-text">检查</span> </a> </li> </ol> </li> <li class="nav-item nav-level-2"> <a class="nav-link" href="#todo3"> <span class="nav-number">1.4</span> <span class="nav-text">TODO3:</span> </a> <ol class="nav-child"> <li class="nav-item nav-level-3"> <a class="nav-link" href="#检查-2"> <span class="nav-number">1.4.1</span> <span class="nav-text">检查</span> </a> </li> </ol> </li> <li class="nav-item nav-level-2"> <a class="nav-link" href="#todo4"> <span class="nav-number">1.5</span> <span class="nav-text">TODO4</span> </a> <ol class="nav-child"> <li class="nav-item nav-level-3"> <a class="nav-link" href="#阅读fs-c中的代码"> <span class="nav-number">1.5.1</span> <span class="nav-text">阅读fs. c中的代码</span> </a> </li> <li class="nav-item nav-level-3"> <a class="nav-link" href="#file_block_walk"> <span class="nav-number">1.5.2</span> <span class="nav-text">file_block_walk（）</span> </a> </li> <li class="nav-item nav-level-3"> <a class="nav-link" href="#file_get_block"> <span class="nav-number">1.5.3</span> <span class="nav-text">file_get_block()</span> </a> </li> <li class="nav-item nav-level-3"> <a class="nav-link" href="#检查-3"> <span class="nav-number">1.5.4</span> <span class="nav-text">检查</span> </a> </li> </ol> </li> <li class="nav-item nav-level-2"> <a class="nav-link" href="#todo5"> <span class="nav-number">1.6</span> <span class="nav-text">TODO5:</span> </a> <ol class="nav-child"> <li class="nav-item nav-level-3"> <a class="nav-link" href="#请求文件系统服务的过程"> <span class="nav-number">1.6.1</span> <span class="nav-text">请求文件系统服务的过程</span> </a> </li> <li class="nav-item nav-level-3"> <a class="nav-link" href="#serve_set_size阅读"> <span class="nav-number">1.6.2</span> <span class="nav-text">serve_set_size()阅读</span> </a> </li> <li class="nav-item nav-level-3"> <a class="nav-link" href="#serve_read"> <span class="nav-number">1.6.3</span> <span class="nav-text">serve_read()</span> </a> </li> <li class="nav-item nav-level-3"> <a class="nav-link" href="#检查-4"> <span class="nav-number">1.6.4</span> <span class="nav-text">检查</span> </a> </li> </ol> </li> <li class="nav-item nav-level-2"> <a class="nav-link" href="#todo6"> <span class="nav-number">1.7</span> <span class="nav-text">TODO6:</span> </a> <ol class="nav-child"> <li class="nav-item nav-level-3"> <a class="nav-link" href="#serve_write"> <span class="nav-number">1.7.1</span> <span class="nav-text">serve_write()</span> </a> </li> <li class="nav-item nav-level-3"> <a class="nav-link" href="#devfile_write"> <span class="nav-number">1.7.2</span> <span class="nav-text">devfile_write()</span> </a> </li> <li class="nav-item nav-level-3"> <a class="nav-link" href="#检查-5"> <span class="nav-number">1.7.3</span> <span class="nav-text">检查</span> </a> </li> </ol> </li> <li class="nav-item nav-level-2"> <a class="nav-link" href="#总结"> <span class="nav-number">1.8</span> <span class="nav-text">总结</span> </a> </li> </ol> </li>
+    </ol>
+  </div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
+      
+
+      
+
+    </div>
+  </aside>
+
+        
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright" >
+  
+  
+  &copy; 
+  <span itemprop="copyrightYear">2020</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Shutong Chen</span>
+</div>
+
+
+<div class="powered-by">
+  Powered by <a class="theme-link" href="https://jekyllrb.com">Jekyll</a>
+</div>
+
+<div class="theme-info">
+  Theme -
+  <a class="theme-link" href="https://github.com/simpleyyt/jekyll-theme-next">
+    NexT.Muse
+  </a>
+</div>
+
+
+        
+
+        
+      </div>
+    </footer>
+
+    
+      <div class="back-to-top">
+        <i class="fa fa-arrow-up"></i>
+        
+      </div>
+    
+
+  </div>
+
+  
+
+<script type="text/javascript">
+  if (Object.prototype.toString.call(window.Promise) !== '[object Function]') {
+    window.Promise = null;
+  }
+</script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+   
+  
+  
+  
+  
+  
+  <script type="text/javascript" src="/assets/lib/jquery/index.js?v=2.1.3"></script>
+
+  
+  
+  
+  
+  
+  <script type="text/javascript" src="/assets/lib/fastclick/lib/fastclick.min.js?v=1.0.6"></script>
+
+  
+  
+  
+  
+  
+  <script type="text/javascript" src="/assets/lib/jquery_lazyload/jquery.lazyload.js?v=1.9.7"></script>
+
+  
+  
+  
+  
+  
+  <script type="text/javascript" src="/assets/lib/velocity/velocity.min.js?v=1.2.1"></script>
+
+  
+  
+  
+  
+  
+  <script type="text/javascript" src="/assets/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+
+  
+  
+  
+  
+  
+  <script type="text/javascript" src="/assets/lib/fancybox/source/jquery.fancybox.pack.js?v=2.1.5"></script>
+
+
+  
+
+
+  <script type="text/javascript" src="/assets/js/src/utils.js?v=5.1.1"></script>
+
+  <script type="text/javascript" src="/assets/js/src/motion.js?v=5.1.1"></script>
+
+
+
+  
+  
+
+  <script type="text/javascript" src="/assets/js/src/scrollspy.js?v=5.1.1"></script>
+<script type="text/javascript" src="/assets/js/src/post-details.js?v=5.1.1"></script>
+
+
+  
+
+
+  <script type="text/javascript" src="/assets/js/src/bootstrap.js?v=5.1.1"></script>
+
+
+
+  
+
+
+  
+
+
+
+
+	
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+  
+
+    
+
+  
+
+
+
+
+
+  <script type="text/javascript">
+    var wildfireConfig = () => ({
+      
+      useDev: true,
+      
+      
+      version: '0.5.6',
+      
+      databaseProvider: 'firebase',
+      databaseConfig: {
+        
+        apiKey: 'AIzaSyBfR8WwkHnr8Np6SCmYBIelDeLsg1O9reE',
+        authDomain: 'githubblog-b6de2.firebaseapp.com',
+        databaseURL: 'https://githubblog-b6de2.firebaseio.com',
+        projectId: 'githubblog-b6de2',
+        storageBucket: 'githubblog-b6de2.appspot.com',
+        messagingSenderId: '812229193086'
+        
+      },
+      pageURL: 'http://localhost:4000/lab%20report/2020/02/03/OS6filesystem/',
+      pageTitle: 'MIT 6.828 JOS操作系统实验6-文件系统实现详解',
+      
+      theme: 'light',
+      
+      
+      locale: 'en',
+      
+      
+    });
+  </script>
+  
+    
+    <script src="https://unpkg.com/wildfire-comment@1.2.5"></script>
+    
+  
+  <script src="https://unpkg.com/wf-count"></script>
+
+
+
+  
+
+
+  <script type="text/javascript">
+    // Popup Window;
+    var isfetched = false;
+    var isXml = true;
+    // Search DB path;
+    var search_path = "";
+    if (search_path.length === 0) {
+      search_path = "search.xml";
+    } else if (/json$/i.test(search_path)) {
+      isXml = false;
+    }
+    var path = "/" + search_path;
+    // monitor main search box;
+
+    var onPopupClose = function (e) {
+      $('.popup').hide();
+      $('#local-search-input').val('');
+      $('.search-result-list').remove();
+      $('#no-result').remove();
+      $(".local-search-pop-overlay").remove();
+      $('body').css('overflow', '');
+    }
+
+    function proceedsearch() {
+      $("body")
+        .append('<div class="search-popup-overlay local-search-pop-overlay"></div>')
+        .css('overflow', 'hidden');
+      $('.search-popup-overlay').click(onPopupClose);
+      $('.popup').toggle();
+      var $localSearchInput = $('#local-search-input');
+      $localSearchInput.attr("autocapitalize", "none");
+      $localSearchInput.attr("autocorrect", "off");
+      $localSearchInput.focus();
+    }
+
+    // search function;
+    var searchFunc = function(path, search_id, content_id) {
+      'use strict';
+
+      // start loading animation
+      $("body")
+        .append('<div class="search-popup-overlay local-search-pop-overlay">' +
+          '<div id="search-loading-icon">' +
+          '<i class="fa fa-spinner fa-pulse fa-5x fa-fw"></i>' +
+          '</div>' +
+          '</div>')
+        .css('overflow', 'hidden');
+      $("#search-loading-icon").css('margin', '20% auto 0 auto').css('text-align', 'center');
+
+      $.ajax({
+        url: path,
+        dataType: isXml ? "xml" : "json",
+        async: true,
+        success: function(res) {
+          // get the contents from search data
+          isfetched = true;
+          $('.popup').detach().appendTo('.header-inner');
+          var datas = isXml ? $("entry", res).map(function() {
+            return {
+              title: $("title", this).text(),
+              content: $("content",this).text(),
+              url: $("url" , this).text()
+            };
+          }).get() : res;
+          var input = document.getElementById(search_id);
+          var resultContent = document.getElementById(content_id);
+          var inputEventFunction = function() {
+            var searchText = input.value.trim().toLowerCase();
+            var keywords = searchText.split(/[\s\-]+/);
+            if (keywords.length > 1) {
+              keywords.push(searchText);
+            }
+            var resultItems = [];
+            if (searchText.length > 0) {
+              // perform local searching
+              datas.forEach(function(data) {
+                var isMatch = false;
+                var hitCount = 0;
+                var searchTextCount = 0;
+                var title = data.title.trim();
+                var titleInLowerCase = title.toLowerCase();
+                var content = data.content.trim().replace(/<[^>]+>/g,"");
+                var contentInLowerCase = content.toLowerCase();
+                var articleUrl = decodeURIComponent(data.url);
+                var indexOfTitle = [];
+                var indexOfContent = [];
+                // only match articles with not empty titles
+                if(title != '') {
+                  keywords.forEach(function(keyword) {
+                    function getIndexByWord(word, text, caseSensitive) {
+                      var wordLen = word.length;
+                      if (wordLen === 0) {
+                        return [];
+                      }
+                      var startPosition = 0, position = [], index = [];
+                      if (!caseSensitive) {
+                        text = text.toLowerCase();
+                        word = word.toLowerCase();
+                      }
+                      while ((position = text.indexOf(word, startPosition)) > -1) {
+                        index.push({position: position, word: word});
+                        startPosition = position + wordLen;
+                      }
+                      return index;
+                    }
+
+                    indexOfTitle = indexOfTitle.concat(getIndexByWord(keyword, titleInLowerCase, false));
+                    indexOfContent = indexOfContent.concat(getIndexByWord(keyword, contentInLowerCase, false));
+                  });
+                  if (indexOfTitle.length > 0 || indexOfContent.length > 0) {
+                    isMatch = true;
+                    hitCount = indexOfTitle.length + indexOfContent.length;
+                  }
+                }
+
+                // show search results
+
+                if (isMatch) {
+                  // sort index by position of keyword
+
+                  [indexOfTitle, indexOfContent].forEach(function (index) {
+                    index.sort(function (itemLeft, itemRight) {
+                      if (itemRight.position !== itemLeft.position) {
+                        return itemRight.position - itemLeft.position;
+                      } else {
+                        return itemLeft.word.length - itemRight.word.length;
+                      }
+                    });
+                  });
+
+                  // merge hits into slices
+
+                  function mergeIntoSlice(text, start, end, index) {
+                    var item = index[index.length - 1];
+                    var position = item.position;
+                    var word = item.word;
+                    var hits = [];
+                    var searchTextCountInSlice = 0;
+                    while (position + word.length <= end && index.length != 0) {
+                      if (word === searchText) {
+                        searchTextCountInSlice++;
+                      }
+                      hits.push({position: position, length: word.length});
+                      var wordEnd = position + word.length;
+
+                      // move to next position of hit
+
+                      index.pop();
+                      while (index.length != 0) {
+                        item = index[index.length - 1];
+                        position = item.position;
+                        word = item.word;
+                        if (wordEnd > position) {
+                          index.pop();
+                        } else {
+                          break;
+                        }
+                      }
+                    }
+                    searchTextCount += searchTextCountInSlice;
+                    return {
+                      hits: hits,
+                      start: start,
+                      end: end,
+                      searchTextCount: searchTextCountInSlice
+                    };
+                  }
+
+                  var slicesOfTitle = [];
+                  if (indexOfTitle.length != 0) {
+                    slicesOfTitle.push(mergeIntoSlice(title, 0, title.length, indexOfTitle));
+                  }
+
+                  var slicesOfContent = [];
+                  while (indexOfContent.length != 0) {
+                    var item = indexOfContent[indexOfContent.length - 1];
+                    var position = item.position;
+                    var word = item.word;
+                    // cut out 100 characters
+                    var start = position - 20;
+                    var end = position + 80;
+                    if(start < 0){
+                      start = 0;
+                    }
+                    if (end < position + word.length) {
+                      end = position + word.length;
+                    }
+                    if(end > content.length){
+                      end = content.length;
+                    }
+                    slicesOfContent.push(mergeIntoSlice(content, start, end, indexOfContent));
+                  }
+
+                  // sort slices in content by search text's count and hits' count
+
+                  slicesOfContent.sort(function (sliceLeft, sliceRight) {
+                    if (sliceLeft.searchTextCount !== sliceRight.searchTextCount) {
+                      return sliceRight.searchTextCount - sliceLeft.searchTextCount;
+                    } else if (sliceLeft.hits.length !== sliceRight.hits.length) {
+                      return sliceRight.hits.length - sliceLeft.hits.length;
+                    } else {
+                      return sliceLeft.start - sliceRight.start;
+                    }
+                  });
+
+                  // select top N slices in content
+
+                  var upperBound = parseInt('1');
+                  if (upperBound >= 0) {
+                    slicesOfContent = slicesOfContent.slice(0, upperBound);
+                  }
+
+                  // highlight title and content
+
+                  function highlightKeyword(text, slice) {
+                    var result = '';
+                    var prevEnd = slice.start;
+                    slice.hits.forEach(function (hit) {
+                      result += text.substring(prevEnd, hit.position);
+                      var end = hit.position + hit.length;
+                      result += '<b class="search-keyword">' + text.substring(hit.position, end) + '</b>';
+                      prevEnd = end;
+                    });
+                    result += text.substring(prevEnd, slice.end);
+                    return result;
+                  }
+
+                  var resultItem = '';
+
+                  if (slicesOfTitle.length != 0) {
+                    resultItem += "<li><a href='" + articleUrl + "' class='search-result-title'>" + highlightKeyword(title, slicesOfTitle[0]) + "</a>";
+                  } else {
+                    resultItem += "<li><a href='" + articleUrl + "' class='search-result-title'>" + title + "</a>";
+                  }
+
+                  slicesOfContent.forEach(function (slice) {
+                    resultItem += "<a href='" + articleUrl + "'>" +
+                      "<p class=\"search-result\">" + highlightKeyword(content, slice) +
+                      "...</p>" + "</a>";
+                  });
+
+                  resultItem += "</li>";
+                  resultItems.push({
+                    item: resultItem,
+                    searchTextCount: searchTextCount,
+                    hitCount: hitCount,
+                    id: resultItems.length
+                  });
+                }
+              })
+            };
+            if (keywords.length === 1 && keywords[0] === "") {
+              resultContent.innerHTML = '<div id="no-result"><i class="fa fa-search fa-5x" /></div>'
+            } else if (resultItems.length === 0) {
+              resultContent.innerHTML = '<div id="no-result"><i class="fa fa-frown-o fa-5x" /></div>'
+            } else {
+              resultItems.sort(function (resultLeft, resultRight) {
+                if (resultLeft.searchTextCount !== resultRight.searchTextCount) {
+                  return resultRight.searchTextCount - resultLeft.searchTextCount;
+                } else if (resultLeft.hitCount !== resultRight.hitCount) {
+                  return resultRight.hitCount - resultLeft.hitCount;
+                } else {
+                  return resultRight.id - resultLeft.id;
+                }
+              });
+              var searchResultList = '<ul class=\"search-result-list\">';
+              resultItems.forEach(function (result) {
+                searchResultList += result.item;
+              })
+              searchResultList += "</ul>";
+              resultContent.innerHTML = searchResultList;
+            }
+          }
+
+          if ('auto' === 'auto') {
+            input.addEventListener('input', inputEventFunction);
+          } else {
+            $('.search-icon').click(inputEventFunction);
+            input.addEventListener('keypress', function (event) {
+              if (event.keyCode === 13) {
+                inputEventFunction();
+              }
+            });
+          }
+
+          // remove loading animation
+          $(".local-search-pop-overlay").remove();
+          $('body').css('overflow', '');
+
+          proceedsearch();
+        }
+      });
+    }
+
+    // handle and trigger popup window;
+    $('.popup-trigger').click(function(e) {
+      e.stopPropagation();
+      if (isfetched === false) {
+        searchFunc(path, 'local-search-input', 'local-search-result');
+      } else {
+        proceedsearch();
+      };
+    });
+
+    $('.popup-btn-close').click(onPopupClose);
+    $('.popup').click(function(e){
+      e.stopPropagation();
+    });
+    $(document).on('keyup', function (event) {
+      var shouldDismissSearchPopup = event.which === 27 &&
+        $('.search-popup').is(':visible');
+      if (shouldDismissSearchPopup) {
+        onPopupClose();
+      }
+    });
+  </script>
+
+
+
+
+
+  
+
+  
+  <script src="https://cdn1.lncld.net/static/js/av-core-mini-0.6.1.js"></script>
+  <script>AV.initialize("Jrde1fjYIi1vvv2280DCd6C2-gzGzoHsz", "VXnQp5diaS1YaLt2pjmWxc8W");</script>
+  <script>
+    function showTime(Counter) {
+      var query = new AV.Query(Counter);
+      var entries = [];
+      var $visitors = $(".leancloud_visitors");
+
+      $visitors.each(function () {
+        entries.push( $(this).attr("id").trim() );
+      });
+
+      query.containedIn('url', entries);
+      query.find()
+        .done(function (results) {
+          var COUNT_CONTAINER_REF = '.leancloud-visitors-count';
+
+          if (results.length === 0) {
+            $visitors.find(COUNT_CONTAINER_REF).text(0);
+            return;
+          }
+
+          for (var i = 0; i < results.length; i++) {
+            var item = results[i];
+            var url = item.get('url');
+            var time = item.get('time');
+            var element = document.getElementById(url);
+
+            $(element).find(COUNT_CONTAINER_REF).text(time);
+          }
+          for(var i = 0; i < entries.length; i++) {
+            var url = entries[i];
+            var element = document.getElementById(url);
+            var countSpan = $(element).find(COUNT_CONTAINER_REF);
+            if( countSpan.text() == '') {
+              countSpan.text(0);
+            }
+          }
+        })
+        .fail(function (object, error) {
+          console.log("Error: " + error.code + " " + error.message);
+        });
+    }
+
+    function addCount(Counter) {
+      var $visitors = $(".leancloud_visitors");
+      var url = $visitors.attr('id').trim();
+      var title = $visitors.attr('data-flag-title').trim();
+      var query = new AV.Query(Counter);
+
+      query.equalTo("url", url);
+      query.find({
+        success: function(results) {
+          if (results.length > 0) {
+            var counter = results[0];
+            counter.fetchWhenSave(true);
+            counter.increment("time");
+            counter.save(null, {
+              success: function(counter) {
+                var $element = $(document.getElementById(url));
+                $element.find('.leancloud-visitors-count').text(counter.get('time'));
+              },
+              error: function(counter, error) {
+                console.log('Failed to save Visitor num, with error message: ' + error.message);
+              }
+            });
+          } else {
+            var newcounter = new Counter();
+            /* Set ACL */
+            var acl = new AV.ACL();
+            acl.setPublicReadAccess(true);
+            acl.setPublicWriteAccess(true);
+            newcounter.setACL(acl);
+            /* End Set ACL */
+            newcounter.set("title", title);
+            newcounter.set("url", url);
+            newcounter.set("time", 1);
+            newcounter.save(null, {
+              success: function(newcounter) {
+                var $element = $(document.getElementById(url));
+                $element.find('.leancloud-visitors-count').text(newcounter.get('time'));
+              },
+              error: function(newcounter, error) {
+                console.log('Failed to create');
+              }
+            });
+          }
+        },
+        error: function(error) {
+          console.log('Error:' + error.code + " " + error.message);
+        }
+      });
+    }
+
+    $(function() {
+      var Counter = AV.Object.extend("Counter");
+      if ($('.leancloud_visitors').length == 1) {
+        addCount(Counter);
+      } else if ($('.post-title-link').length > 1) {
+        showTime(Counter);
+      }
+    });
+  </script>
+
+
+
+  
+<script>
+(function(){
+    var bp = document.createElement('script');
+    var curProtocol = window.location.protocol.split(':')[0];
+    if (curProtocol === 'https') {
+        bp.src = 'https://zz.bdstatic.com/linksubmit/push.js';
+    }
+    else {
+        bp.src = 'http://push.zhanzhang.baidu.com/push.js';
+    }
+    var s = document.getElementsByTagName("script")[0];
+    s.parentNode.insertBefore(bp, s);
+})();
+</script>
+
+
+  
+  
+
+
+  
+  
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({
+        tex2jax: {
+          inlineMath: [ ['$','$'], ["\\(","\\)"]  ],
+          processEscapes: true,
+          skipTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code']
+        }
+      });
+    </script>
+
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Queue(function() {
+        var all = MathJax.Hub.getAllJax(), i;
+        for (i=0; i < all.length; i += 1) {
+          all[i].SourceElement().parentNode.className += ' has-jax';
+        }
+      });
+    </script>
+    <script type="text/javascript" src="//cdn.bootcss.com/mathjax/2.7.1/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
+  
+
+
+  
+
+  
+
+</body>
+</html>
+
