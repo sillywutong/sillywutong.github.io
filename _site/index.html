@@ -343,6 +343,231 @@
   
 
   <article class="post post-type- " itemscope itemtype="http://schema.org/Article">
+    <link itemprop="mainEntityOfPage" href="http://localhost:4000/paper%20reading/2020/02/19/defend/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="Shutong Chen">
+      <meta itemprop="description" content="">
+      <meta itemprop="image" content="/assets/images/avatar.jpg">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Shutong Chen's Blog">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h2 class="post-title" itemprop="name headline">
+          
+          
+            
+                
+                <a class="post-title-link" href="/paper%20reading/2020/02/19/defend/" itemprop="url">
+                [论文阅读笔记]假新闻检测 dEFEND: Explainable Fake News Detection
+              </a>
+            
+          
+        </h2>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">Posted on</span>
+              
+              <time title="Post created" itemprop="dateCreated datePublished" datetime="2020-02-19T00:00:00+08:00">
+                2020-02-19
+              </time>
+            
+
+            
+              <span class="post-meta-divider">|</span>
+            
+
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-check-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">Post modified</span>
+              
+              <time title="Post modified" itemprop="dateModified" datetime="">
+                
+              </time>
+            
+          </span>
+
+          
+            <span class="post-category" >
+            
+              <span class="post-meta-divider">|</span>
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">In</span>
+              
+              
+                
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/category/#/Paper%20Reading" itemprop="url" rel="index">
+                    <span itemprop="name">Paper Reading</span>
+                  </a>
+                </span>
+
+                
+                
+              
+            </span>
+          
+
+          
+            
+              <span class="post-comments-count">
+                <span class="post-meta-divider">|</span>
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-comment-o"></i>
+                </span>
+                <a href="/paper%20reading/2020/02/19/defend/#comments" itemprop="discussionUrl">
+                  <span class="post-comments-count wf-count-unit" wf-page-url="http://localhost:4000/paper%20reading/2020/02/19/defend/" itemprop="commentCount"></span>
+                </a>
+              </span>
+            
+          
+
+          
+          
+             <span id="/paper%20reading/2020/02/19/defend/" class="leancloud_visitors" data-flag-title="[论文阅读笔记]假新闻检测 dEFEND: Explainable Fake News Detection">
+               <span class="post-meta-divider">|</span>
+               <span class="post-meta-item-icon">
+                 <i class="fa fa-eye"></i>
+               </span>
+               
+                 <span class="post-meta-item-text">Visitors </span>
+               
+                 <span class="leancloud-visitors-count"></span>
+             </span>
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        
+          
+  
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  <p>论文： dEFEND: Explainable Fake News Detection</p>
+
+<p>KDD2019：</p>
+
+<table>
+  <tbody>
+    <tr>
+      <td>[KDD 2019</td>
+      <td>dEFEND: Explainable Fake News Detection](https://www.kdd.org/kdd2019/accepted-papers/view/defend-explainable-fake-news-detection)</td>
+    </tr>
+  </tbody>
+</table>
+
+<h1 id="abstract">ABSTRACT</h1>
+
+<p>本文研究的问题是假新闻检测，假新闻检测可以看作一个分类问题，它和谣言分类、fact check、垃圾内容挖掘等比较相似，都属于内容质量检测的领域。假新闻检测的研究方向主要有三个：</p>
+
+<ol>
+  <li>数据集： 假新闻标准数据集需要人工去构建。</li>
+  <li>特征方面的工作： 假新闻检测的方法可以分为基于内容和基于社交网络，这些方法都涉及到新闻文本的embedding、用户的embedding、用户之间社交网络的embedding如何获取的问题。</li>
+  <li>模型研究。</li>
+</ol>
+
+<p>本文提出，虽然之前的工作在假新闻检测上获得了比较准确的结果，但是这些模型都不是可解释的，不能告诉我们为什么判定这篇新闻是假新闻。他们提出了一个融合模型，根据新闻内容和用户评论来检测，同时能够筛选出Top-k 用户评论来解释为什么这条新闻是假的。作者在真实数据集上做实验，结果比7个模型f1-score高出5.33%，精确度大幅提升。</p>
+
+
+
+          <!--noindex-->
+          <div class="post-button text-center">
+            <a class="btn" href="/paper%20reading/2020/02/19/defend/#more" rel="contents">
+              Read more &raquo;
+            </a>
+          </div>
+          <!--/noindex-->
+        
+      
+    </div>
+
+    <div>
+      
+    </div>
+
+    <div>
+      
+    </div>
+
+    <div>
+      
+    </div>
+
+    <footer class="post-footer">
+      
+
+      
+
+      
+
+      
+        
+        
+        
+        
+          <div class="post-eof"></div>
+        
+      
+    </footer>
+  </article>
+
+  
+    
+    
+
+  
+
+  
+  
+  
+
+  <article class="post post-type- " itemscope itemtype="http://schema.org/Article">
     <link itemprop="mainEntityOfPage" href="http://localhost:4000/lab%20report/2020/02/03/OS6filesystem/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
@@ -1625,7 +1850,7 @@
           
             <div class="site-state-item site-state-posts">
               <a href="/archives/">
-                <span class="site-state-item-count">6</span>
+                <span class="site-state-item-count">7</span>
                 <span class="site-state-item-name">posts</span>
               </a>
             </div>
@@ -1647,7 +1872,7 @@
             
             <div class="site-state-item site-state-tags">
               <a href="/tags/">
-                <span class="site-state-item-count">6</span>
+                <span class="site-state-item-count">7</span>
                 <span class="site-state-item-name">tags</span>
               </a>
             </div>
