@@ -343,6 +343,222 @@
   
 
   <article class="post post-type- " itemscope itemtype="http://schema.org/Article">
+    <link itemprop="mainEntityOfPage" href="http://localhost:4000/paper%20reading/2020/03/01/privacy/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="Shutong Chen">
+      <meta itemprop="description" content="">
+      <meta itemprop="image" content="/assets/images/avatar.jpg">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Shutong Chen's Blog">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h2 class="post-title" itemprop="name headline">
+          
+          
+            
+                
+                <a class="post-title-link" href="/paper%20reading/2020/03/01/privacy/" itemprop="url">
+                [论文阅读笔记]Please Forget Where I Was Last Summer:The Privacy Risks of Public Location (Meta)Data 社交应用位置元数据的隐私暴露问题
+              </a>
+            
+          
+        </h2>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">Posted on</span>
+              
+              <time title="Post created" itemprop="dateCreated datePublished" datetime="2020-03-01T00:00:00+08:00">
+                2020-03-01
+              </time>
+            
+
+            
+              <span class="post-meta-divider">|</span>
+            
+
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-check-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">Post modified</span>
+              
+              <time title="Post modified" itemprop="dateModified" datetime="">
+                
+              </time>
+            
+          </span>
+
+          
+            <span class="post-category" >
+            
+              <span class="post-meta-divider">|</span>
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">In</span>
+              
+              
+                
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/category/#/Paper%20Reading" itemprop="url" rel="index">
+                    <span itemprop="name">Paper Reading</span>
+                  </a>
+                </span>
+
+                
+                
+              
+            </span>
+          
+
+          
+            
+              <span class="post-comments-count">
+                <span class="post-meta-divider">|</span>
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-comment-o"></i>
+                </span>
+                <a href="/paper%20reading/2020/03/01/privacy/#comments" itemprop="discussionUrl">
+                  <span class="post-comments-count wf-count-unit" wf-page-url="http://localhost:4000/paper%20reading/2020/03/01/privacy/" itemprop="commentCount"></span>
+                </a>
+              </span>
+            
+          
+
+          
+          
+             <span id="/paper%20reading/2020/03/01/privacy/" class="leancloud_visitors" data-flag-title="[论文阅读笔记]Please Forget Where I Was Last Summer:The Privacy Risks of Public Location (Meta)Data 社交应用位置元数据的隐私暴露问题">
+               <span class="post-meta-divider">|</span>
+               <span class="post-meta-item-icon">
+                 <i class="fa fa-eye"></i>
+               </span>
+               
+                 <span class="post-meta-item-text">Visitors </span>
+               
+                 <span class="leancloud-visitors-count"></span>
+             </span>
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        
+          
+  
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  <p>论文题目：Please Forget Where I Was Last Summer:The Privacy Risks of Public Location (Meta)Data</p>
+
+<p>链接：</p>
+
+<p><a href="https://www.ndss-symposium.org/wp-content/uploads/2019/02/ndss2019_01A-6_Drakonakis_paper.pdf">Please Forget Where I Was Last Summer:The Privacy Risks of Public Location (Meta)Data</a></p>
+
+<h1 id="abstract">Abstract</h1>
+
+<p>这篇文章研究用户在社交网站，例如推特上的位置数据，如何以及多大程度上泄露了他们的隐私（例如敏感信息，身体状况等）。他们制作了一个LPAuditor的工具，这个工具可以解释性地评价社交位置元数据（location metadata）造成的隐私泄露。</p>
+
+<p>这个系统首先可以以最细的粒度发现用户的关键位置（通过鉴别他们真实的邮件地址(postal addresses). 然后，他们可以自动地进行隐私信息推断， 比如发现用户去过的和健康相关的位置、宗教场所以及夜店等。</p>
+
+<p>作者们还进一步探索了用户活动和暴露出来的信息失配的情况。他们发现老版本的推特app，会给用户的geo-tagged的推文加上精确的GPS 坐标（在元数据里），这种做法是会侵犯用户隐私的。而当用户对自己的数据有更多选择，例如可以选择他们要发表什么粒度的location data时，这种细粒度带GPS坐标的推文94%都不会被发表，说明用户对自己精确的位置信息是十分在意的。</p>
+
+<p>所以，这个LPAuditor可以给用户作为一种审核工具，告诉用户在发表这个位置信息的时候，他们的什么隐私可能会被暴露，从而让用户对自己的数据有更多选择。</p>
+
+
+
+          <!--noindex-->
+          <div class="post-button text-center">
+            <a class="btn" href="/paper%20reading/2020/03/01/privacy/#more" rel="contents">
+              Read more &raquo;
+            </a>
+          </div>
+          <!--/noindex-->
+        
+      
+    </div>
+
+    <div>
+      
+    </div>
+
+    <div>
+      
+    </div>
+
+    <div>
+      
+    </div>
+
+    <footer class="post-footer">
+      
+
+      
+
+      
+
+      
+        
+        
+        
+        
+          <div class="post-eof"></div>
+        
+      
+    </footer>
+  </article>
+
+  
+    
+    
+
+  
+
+  
+  
+  
+
+  <article class="post post-type- " itemscope itemtype="http://schema.org/Article">
     <link itemprop="mainEntityOfPage" href="http://localhost:4000/paper%20reading/2020/02/19/defend/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
@@ -1850,7 +2066,7 @@
           
             <div class="site-state-item site-state-posts">
               <a href="/archives/">
-                <span class="site-state-item-count">7</span>
+                <span class="site-state-item-count">8</span>
                 <span class="site-state-item-name">posts</span>
               </a>
             </div>
@@ -1872,7 +2088,7 @@
             
             <div class="site-state-item site-state-tags">
               <a href="/tags/">
-                <span class="site-state-item-count">7</span>
+                <span class="site-state-item-count">9</span>
                 <span class="site-state-item-name">tags</span>
               </a>
             </div>
