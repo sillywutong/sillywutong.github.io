@@ -408,11 +408,17 @@ pre .k, pre .kd, pre .kn, pre .kp, pre .kr, pre .kt, pre .javascript .function {
 .post-body { font-family: "Lato", "PingFang SC", "Microsoft YaHei", sans-serif; }
 @media (max-width: 767px) { .post-body { word-break: break-word; } }
 
+.post-body p { margin-top: 1.5rem; margin-bottom: 1.5rem; }
+
+.post-body li p { margin-top: 0.2rem; margin-bottom: 0.2rem; }
+
 .post-body .fancybox img { display: block !important; margin: 0 auto; cursor: pointer; cursor: zoom-in; cursor: -webkit-zoom-in; }
 
 .post-body img.emoji { border: 0 !important; display: inline; vertical-align: sub; }
 
 .post-body .image-caption, .post-body .figure .caption { margin: 10px auto 15px; text-align: center; font-size: 14px; color: #999; font-weight: bold; line-height: 1; }
+
+.post-body ol { list-style: decimal; }
 
 .post-sticky-flag { display: inline-block; font-size: 16px; -ms-transform: rotate(30deg); -webkit-transform: rotate(30deg); -moz-transform: rotate(30deg); -ms-transform: rotate(30deg); -o-transform: rotate(30deg); transform: rotate(30deg); }
 
@@ -558,7 +564,7 @@ pre .k, pre .kd, pre .kn, pre .kp, pre .kr, pre .kt, pre .javascript .function {
 .links-of-author { margin-top: 20px; }
 
 .links-of-author a { display: inline-block; vertical-align: middle; margin-right: 10px; margin-bottom: 10px; border-bottom-color: #555; font-size: 13px; }
-.links-of-author a:before { display: inline-block; vertical-align: middle; margin-right: 3px; content: " "; width: 4px; height: 4px; border-radius: 50%; background: #7000e0; }
+.links-of-author a:before { display: inline-block; vertical-align: middle; margin-right: 3px; content: " "; width: 4px; height: 4px; border-radius: 50%; background: #6e0dff; }
 
 .links-of-blogroll { font-size: 13px; }
 

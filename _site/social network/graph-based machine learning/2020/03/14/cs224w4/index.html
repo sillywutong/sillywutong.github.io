@@ -1,0 +1,1714 @@
+
+<!doctype html>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<html class="theme-next muse use-motion" lang="en">
+<head>
+  <meta charset="UTF-8"/>
+<meta http-equiv="X-UA-Compatible" content="IE=edge" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1"/>
+
+
+
+
+
+
+
+
+
+<meta http-equiv="Cache-Control" content="no-transform" />
+<meta http-equiv="Cache-Control" content="no-siteapp" />
+
+
+
+  <meta name="google-site-verification" content="53CizgIXyw15rXsEpgcXzCitz50ivr8WWTpupPlMnRo" />
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+  <link href="/assets/lib/fancybox/source/jquery.fancybox.css?v=2.1.5" rel="stylesheet" type="text/css" />
+
+
+
+
+  
+  
+  
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+    
+    
+    <link href="//fonts.googleapis.com/css?family=Lato:300,300italic,400,400italic,700,700italic&subset=latin,latin-ext" rel="stylesheet" type="text/css">
+  
+
+
+
+
+
+
+<link href="/assets/lib/font-awesome/css/font-awesome.min.css?v=4.6.2" rel="stylesheet" type="text/css" />
+
+<link href="/assets/css/main.css?v=5.1.1" rel="stylesheet" type="text/css" />
+
+
+  <meta name="keywords" content="notes," />
+
+
+
+
+
+  <link rel="alternate" href="/atom.xml" title="Shutong Chen's Blog" type="application/atom+xml" />
+
+
+
+
+  <link rel="shortcut icon" type="image/x-icon" href="/assets/favicon.ico?v=5.1.1" />
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<meta name="description" content="这是斯坦福cs224w的课程笔记，根据老师讲课内容、ppt和助教的笔记和自己的理解整理的。 cs224w的资源在b站和youtube都有，不过没有字幕，jure老师的口音挺可爱的，听一俩节课也习惯了，不过有时候还是配合助教的笔记看清楚一些。 助教的笔记： https://snap-stanford.github.io/cs224w-notes/network-methods/spectral-clustering 课程网站（有ppt和作业）：http://web.stanford.edu/class/cs224w/ Spectral Clustering Here we study the important class of spectral methods for understanding networks on a global level. By “spectral” we mean the spectrum, or eigenvalues, of matrices derived from graphs, which will give us insight into the structure of the graphs themselves. In particular, we will explore spectral clustering algorithms, which take advantage of these tools for clustering nodes in graphs. The spectral clustering algorithms we will explore generally consist of three basic stages. Preprocessing: construct a matrix representation of a graph, such as the adjacency matrix (but we will explore other options) Decomposition: compute the eigenvectors and eigenvalues of the matrix, and use these to create a low-dimensional representation space Grouping: assign points to clusters based on their representation in this space *英文内容来自助教的笔记 这一节讲的是用谱分析的方法来做网络聚类。 谱分析就是研究网络邻接矩阵的特征值和特征向量， 从而获得网络结构的一些信息。 这种方法大致分为3个步骤： 预处理： 构建表示图结构的矩阵，例如邻接矩阵以及laplacian矩阵。 分解： 计算特征值和特征向量。用它们来表示节点。 聚类： 将节点根据它们在representation 空间中的情况聚类。 Graph Partitioning Let’s formalize the task we would like to solve. We start out with an undirected graph G(V,E). Our goal is to partition VV into two disjoint groups A,B (so A∩B=∅ and A∪B=V) in a way that maximizes the number of connections internal to the groups and minimizes the number of connections between the two groups. To further formalize the objective, let’s introduce some terminology: 首先对问题作出定义： Cut: how much connection there is between two disjoint sets of nodes. cut(A,B)=∑i∈A,j∈Bwij where wij is the weight of the edge between nodes i and j. 即类A和类B之间的边的总和，如果是有权重的，就是总加权和。 Minimum cut:  使得两个部分之间联系最少的分割。 Since we want to minimize the number of connections between A and B, we might decide to make the minimum cut our objective. However, we find that we end up with very unintuitive clusters this way – we can often simply set A to be a single node with very few outgoing connections, and B to be the rest of the network, to get a very small cut. What we need is a measure that also considers internal cluster connectivity. 但是仅仅考虑两个分割之间的边数是不够的，例如有一个悬挂节点，那么它和网络其他部分的边数为1, 把它作为一个类，两个类就会非常不平衡。 所以，也要考虑到聚类的内部联系。用 conductance 来衡量聚类的好坏，conductance越小，越好。 Enter the conductance, which balances between-group and within-group connectivity concerns. We define  where the total (weighted) degree of the nodes in A. We can roughly think of conductance as analogous to a surface area to volume ratio: the numerator is the area of the shared surface between A and B, and the denominator measures volume while trying to ensure A and B have similar volumes. Because of this nuanced measure, picking A and B to minimize the conductance results in more balanced partitions than minimizing the cut. The challenge then becomes to efficiently find a good partition, since minimizing conductance is NP-hard. 最小化conductance是一个NP-Hard问题。 spectral graph partitioning 首先定义图的邻接矩阵A。 然后假设有一个vector x， x是所有顶点的label。 那么Ax = y ，yi的意义就是： 节点i 的所有邻居的label的总和。 特征值和特征向量的意义？ Ax = λx，意味着，有一种特殊的节点的labeling 方式，使得 我们把一个节点i的所有邻居的label加起来，作为这个节点的新label，这个label就只是原来分配的label的λ倍， 且这个倍数是对所有的节点都一样的。 Enter spectral graph partitioning, a method that will allow us to pin down the conductance using eigenvectors. We’ll start by introducing some basic techniques in spectral graph theory. The goal of spectral graph theory is to analyze the “spectrum” of matrices representing graphs. By spectrum we mean the set Λ={λ1,…,λn} of eigenvalues λiλi of a matrix representing a graph, in order of their magnitudes, along with their corresponding eigenvalues. For example, the largest eigenvector/eigenvalue pair for the adjacency matrix of a d-regular graph is the all-ones vector x=(1,1,…,1), with eigenvalue λ=d. 可以证明， d-regular 的图中， d就是邻接矩阵最大的特征值。（1,1,…1)是它对应的唯一的特征向量。 Exercise: what are some eigenvectors for a disconnected graph with two components, each component d-regular? Note that by the spectral theorem, the adjacency matrix (which is real and symmetric) has a complete spectrum of orthogonal eigenvectors. 然后，如果是有两个连通部分，每个都是d-regular的，那么我们把一边标记为0，一边标为1， x=(0,0,..0,1,1,..1), Ax=lambdax， λ就是d。同样，也可以把一边标为1一边标为0.所以当有两个联通部分的时候， λn=λn-1. multiplicity=2（也就是λ的出现次数）。 当有k个联通部分，λn的multiplicity就是k。 What kinds of matrices can we analyze using spectral graph theory? The adjacency matrix: this matrix is a good starting point due to its direct relation to graph structure. It also has the important property of being symmetric, which means that it has a complete spectrum of real-valued, orthogonal eigenvectors.A的特征向量是正交的！！！所以，xn · xn-1=0, 如果图是d-regular连通图，那么xn=(1,1,1,…), 那么xn-1的元素和必须为0. 那么 xn-1中的元素会有一些&amp;gt;0, 有一些小于0！ 它就把点集分成了两半！ Laplacian matrix ： 性质： L 的对角线是 i的度数， 而在i，j 相连的地方，Lij=-1. x=（1，1, …1） 那么 Lx=0. 所以， λ=λ1=0 最小的那个特征值是0. 那么，所有特征值都是非负的。 L也是实对称阵， 那么特征向量也都是正交的，并且有n个特征值。 In particular, λ2, the second smallest eigenvalue of L, is already fascinating and studying it will let us make big strides in understanding graph clustering. By the theory of Rayleigh quotients, we have that where w1is the eigenvector corresponding to eigenvalue λ1; in other words, we minimize the objective in the subspace of vectors orthogonal to the first eigenvector in order to find the second eigenvector (remember that L is symmetric and thus has an orthogonal basis of eigenvalues). 就会变成： 这个目标的意义就是， xi - xj可以看作是节点i和节点j的label的距离，而当ijlabel 一个为正一个为负的时候，他们的距离平方就会大，如果是同一个分组的，平方和就会小。 那么这个式子就是在将节点分成两半，然后要横跨两个部分的边越少越好。（同一边的越多越好） how to find optimal cut （Fiedler） 这个yi 只能取1或负1，是节点的label。这个目标实际上和λ2的目标很相似，只不过λ2那个式子里，xlabel是可以取任意实值的。但是，这个没办法求出精确解， 所以，有了下面的约束，并且让y可以取任意实值：因为和y的大小没有关系，所以可以约束 y =1， 而 就是让 A == B 的一个约束。 所以， λ2 = min f(y) 而， x = arg miny f(y) y的解就是λ2对应的特征向量。 Now that we have a link between an eigenvalue of L and graph partitioning, let’s push the connection further and see if we can get rid of the hard |A|=|B| constraint – maybe there is a link between the more flexible conductance measure and λ2. Let’s rephrase conductance here in the following way: if a graph Gis partitioned into A and B where |A|≤|B| , then the conductance of the cut is defined as β=cut(A,B)/|A| . A result called the Cheeger inequality links β to λ2: in particular,  where kmax is the maximum node degree in the graph. The upper bound on λ2 is most useful to us for graph partitioning, since we are trying to minimize the conductance; it says that λ2 gives us a good estimate of the conductance – we never overestimate it more than by a factor of 2! The corresponding eigenvector x is defined by xi=−1/a if i∈A and xj=1/b if i∈B ; the signs of the entries of x give us the partition assignments of each node. λ2可以作为分割的metrics conductance 的一个良好近似，因为λ2≤ 2β， 所以估计值比真实值大最多一倍。 Spectral Clustering 实做 算出图的Laplacian matrix L 计算出L 的特征值λ和特征矩阵x ， 第二小的那个λ2 对应的特征向量x2， 对应了每个节点的label grouping，决定x2 从哪个值分成两个partition，一般是0 K 个partition怎么办 recursively cut into 2 partitions cluster multiple eigenvectors， 不仅是看x2， 也看x3， x4……，一个节点就会由p个值来label， 然后可以把这些在p维空间聚类。 如何选择有多少个聚类？ 如何确定k？ eigengap： 两个相邻的特征值的绝对值差。 Most stable clustering is generally given by the value k that maximizes eigengap Δk （这里的特征值是从大到小排序的，取从大到小扫描，两个相邻值相差最大的k） Motif-Based Spectral Clustering What if we want to cluster by higher-level patterns than raw edges? We can instead cluster graph motifs into “modules”. We can do everything in an analogous way. Let’s start by proposing analogous definitions for cut, volume and conductance: motifs cut：cutM(S): 是一些节点在一个partition，而另一些节点在另一个partition中的motifs的数量。 volm(S): 是S中motif m的节点的数量。 motif conductance： 找到optimal cut 也一样是np-hard问题 算法： preprocessing： 把原来的图转变为 一个 weighted graph，边的权重= 这条边参与motif的个数。 apply spectral cluster： 根据转化后的加权图，算出它的邻接矩阵A和laplacian矩阵L。 并且求L的特征值和特征向量 λ2和x2 grouping： 对节点按x2中的值从小到大排序， 然后分别从第i个节点处分割， 每次分割算出在第i个节点分割的motif conductance， conductance 最小的那个就是近似最好的分割。 这样比直接从0分成两半要好。 这个近似也是有可证明的保障的： Again, we can prove a motif version of the Cheeger inequality to show that the motif conductance found by our algorithm is bounded above by  , where  is the optimal conductance.">
+<meta name="keywords" content="notes">
+<meta property="og:type" content="article">
+<meta property="og:title" content="[cs224w笔记]4.网络聚类之谱分析方法">
+<meta property="og:url" content="http://localhost:4000/social%20network/graph-based%20machine%20learning/2020/03/14/cs224w4/">
+<meta property="og:site_name" content="Shutong Chen's Blog">
+<meta property="og:description" content="这是斯坦福cs224w的课程笔记，根据老师讲课内容、ppt和助教的笔记和自己的理解整理的。 cs224w的资源在b站和youtube都有，不过没有字幕，jure老师的口音挺可爱的，听一俩节课也习惯了，不过有时候还是配合助教的笔记看清楚一些。 助教的笔记： https://snap-stanford.github.io/cs224w-notes/network-methods/spectral-clustering 课程网站（有ppt和作业）：http://web.stanford.edu/class/cs224w/ Spectral Clustering Here we study the important class of spectral methods for understanding networks on a global level. By “spectral” we mean the spectrum, or eigenvalues, of matrices derived from graphs, which will give us insight into the structure of the graphs themselves. In particular, we will explore spectral clustering algorithms, which take advantage of these tools for clustering nodes in graphs. The spectral clustering algorithms we will explore generally consist of three basic stages. Preprocessing: construct a matrix representation of a graph, such as the adjacency matrix (but we will explore other options) Decomposition: compute the eigenvectors and eigenvalues of the matrix, and use these to create a low-dimensional representation space Grouping: assign points to clusters based on their representation in this space *英文内容来自助教的笔记 这一节讲的是用谱分析的方法来做网络聚类。 谱分析就是研究网络邻接矩阵的特征值和特征向量， 从而获得网络结构的一些信息。 这种方法大致分为3个步骤： 预处理： 构建表示图结构的矩阵，例如邻接矩阵以及laplacian矩阵。 分解： 计算特征值和特征向量。用它们来表示节点。 聚类： 将节点根据它们在representation 空间中的情况聚类。 Graph Partitioning Let’s formalize the task we would like to solve. We start out with an undirected graph G(V,E). Our goal is to partition VV into two disjoint groups A,B (so A∩B=∅ and A∪B=V) in a way that maximizes the number of connections internal to the groups and minimizes the number of connections between the two groups. To further formalize the objective, let’s introduce some terminology: 首先对问题作出定义： Cut: how much connection there is between two disjoint sets of nodes. cut(A,B)=∑i∈A,j∈Bwij where wij is the weight of the edge between nodes i and j. 即类A和类B之间的边的总和，如果是有权重的，就是总加权和。 Minimum cut:  使得两个部分之间联系最少的分割。 Since we want to minimize the number of connections between A and B, we might decide to make the minimum cut our objective. However, we find that we end up with very unintuitive clusters this way – we can often simply set A to be a single node with very few outgoing connections, and B to be the rest of the network, to get a very small cut. What we need is a measure that also considers internal cluster connectivity. 但是仅仅考虑两个分割之间的边数是不够的，例如有一个悬挂节点，那么它和网络其他部分的边数为1, 把它作为一个类，两个类就会非常不平衡。 所以，也要考虑到聚类的内部联系。用 conductance 来衡量聚类的好坏，conductance越小，越好。 Enter the conductance, which balances between-group and within-group connectivity concerns. We define  where the total (weighted) degree of the nodes in A. We can roughly think of conductance as analogous to a surface area to volume ratio: the numerator is the area of the shared surface between A and B, and the denominator measures volume while trying to ensure A and B have similar volumes. Because of this nuanced measure, picking A and B to minimize the conductance results in more balanced partitions than minimizing the cut. The challenge then becomes to efficiently find a good partition, since minimizing conductance is NP-hard. 最小化conductance是一个NP-Hard问题。 spectral graph partitioning 首先定义图的邻接矩阵A。 然后假设有一个vector x， x是所有顶点的label。 那么Ax = y ，yi的意义就是： 节点i 的所有邻居的label的总和。 特征值和特征向量的意义？ Ax = λx，意味着，有一种特殊的节点的labeling 方式，使得 我们把一个节点i的所有邻居的label加起来，作为这个节点的新label，这个label就只是原来分配的label的λ倍， 且这个倍数是对所有的节点都一样的。 Enter spectral graph partitioning, a method that will allow us to pin down the conductance using eigenvectors. We’ll start by introducing some basic techniques in spectral graph theory. The goal of spectral graph theory is to analyze the “spectrum” of matrices representing graphs. By spectrum we mean the set Λ={λ1,…,λn} of eigenvalues λiλi of a matrix representing a graph, in order of their magnitudes, along with their corresponding eigenvalues. For example, the largest eigenvector/eigenvalue pair for the adjacency matrix of a d-regular graph is the all-ones vector x=(1,1,…,1), with eigenvalue λ=d. 可以证明， d-regular 的图中， d就是邻接矩阵最大的特征值。（1,1,…1)是它对应的唯一的特征向量。 Exercise: what are some eigenvectors for a disconnected graph with two components, each component d-regular? Note that by the spectral theorem, the adjacency matrix (which is real and symmetric) has a complete spectrum of orthogonal eigenvectors. 然后，如果是有两个连通部分，每个都是d-regular的，那么我们把一边标记为0，一边标为1， x=(0,0,..0,1,1,..1), Ax=lambdax， λ就是d。同样，也可以把一边标为1一边标为0.所以当有两个联通部分的时候， λn=λn-1. multiplicity=2（也就是λ的出现次数）。 当有k个联通部分，λn的multiplicity就是k。 What kinds of matrices can we analyze using spectral graph theory? The adjacency matrix: this matrix is a good starting point due to its direct relation to graph structure. It also has the important property of being symmetric, which means that it has a complete spectrum of real-valued, orthogonal eigenvectors.A的特征向量是正交的！！！所以，xn · xn-1=0, 如果图是d-regular连通图，那么xn=(1,1,1,…), 那么xn-1的元素和必须为0. 那么 xn-1中的元素会有一些&amp;gt;0, 有一些小于0！ 它就把点集分成了两半！ Laplacian matrix ： 性质： L 的对角线是 i的度数， 而在i，j 相连的地方，Lij=-1. x=（1，1, …1） 那么 Lx=0. 所以， λ=λ1=0 最小的那个特征值是0. 那么，所有特征值都是非负的。 L也是实对称阵， 那么特征向量也都是正交的，并且有n个特征值。 In particular, λ2, the second smallest eigenvalue of L, is already fascinating and studying it will let us make big strides in understanding graph clustering. By the theory of Rayleigh quotients, we have that where w1is the eigenvector corresponding to eigenvalue λ1; in other words, we minimize the objective in the subspace of vectors orthogonal to the first eigenvector in order to find the second eigenvector (remember that L is symmetric and thus has an orthogonal basis of eigenvalues). 就会变成： 这个目标的意义就是， xi - xj可以看作是节点i和节点j的label的距离，而当ijlabel 一个为正一个为负的时候，他们的距离平方就会大，如果是同一个分组的，平方和就会小。 那么这个式子就是在将节点分成两半，然后要横跨两个部分的边越少越好。（同一边的越多越好） how to find optimal cut （Fiedler） 这个yi 只能取1或负1，是节点的label。这个目标实际上和λ2的目标很相似，只不过λ2那个式子里，xlabel是可以取任意实值的。但是，这个没办法求出精确解， 所以，有了下面的约束，并且让y可以取任意实值：因为和y的大小没有关系，所以可以约束 y =1， 而 就是让 A == B 的一个约束。 所以， λ2 = min f(y) 而， x = arg miny f(y) y的解就是λ2对应的特征向量。 Now that we have a link between an eigenvalue of L and graph partitioning, let’s push the connection further and see if we can get rid of the hard |A|=|B| constraint – maybe there is a link between the more flexible conductance measure and λ2. Let’s rephrase conductance here in the following way: if a graph Gis partitioned into A and B where |A|≤|B| , then the conductance of the cut is defined as β=cut(A,B)/|A| . A result called the Cheeger inequality links β to λ2: in particular,  where kmax is the maximum node degree in the graph. The upper bound on λ2 is most useful to us for graph partitioning, since we are trying to minimize the conductance; it says that λ2 gives us a good estimate of the conductance – we never overestimate it more than by a factor of 2! The corresponding eigenvector x is defined by xi=−1/a if i∈A and xj=1/b if i∈B ; the signs of the entries of x give us the partition assignments of each node. λ2可以作为分割的metrics conductance 的一个良好近似，因为λ2≤ 2β， 所以估计值比真实值大最多一倍。 Spectral Clustering 实做 算出图的Laplacian matrix L 计算出L 的特征值λ和特征矩阵x ， 第二小的那个λ2 对应的特征向量x2， 对应了每个节点的label grouping，决定x2 从哪个值分成两个partition，一般是0 K 个partition怎么办 recursively cut into 2 partitions cluster multiple eigenvectors， 不仅是看x2， 也看x3， x4……，一个节点就会由p个值来label， 然后可以把这些在p维空间聚类。 如何选择有多少个聚类？ 如何确定k？ eigengap： 两个相邻的特征值的绝对值差。 Most stable clustering is generally given by the value k that maximizes eigengap Δk （这里的特征值是从大到小排序的，取从大到小扫描，两个相邻值相差最大的k） Motif-Based Spectral Clustering What if we want to cluster by higher-level patterns than raw edges? We can instead cluster graph motifs into “modules”. We can do everything in an analogous way. Let’s start by proposing analogous definitions for cut, volume and conductance: motifs cut：cutM(S): 是一些节点在一个partition，而另一些节点在另一个partition中的motifs的数量。 volm(S): 是S中motif m的节点的数量。 motif conductance： 找到optimal cut 也一样是np-hard问题 算法： preprocessing： 把原来的图转变为 一个 weighted graph，边的权重= 这条边参与motif的个数。 apply spectral cluster： 根据转化后的加权图，算出它的邻接矩阵A和laplacian矩阵L。 并且求L的特征值和特征向量 λ2和x2 grouping： 对节点按x2中的值从小到大排序， 然后分别从第i个节点处分割， 每次分割算出在第i个节点分割的motif conductance， conductance 最小的那个就是近似最好的分割。 这样比直接从0分成两半要好。 这个近似也是有可证明的保障的： Again, we can prove a motif version of the Cheeger inequality to show that the motif conductance found by our algorithm is bounded above by  , where  is the optimal conductance.">
+<meta property="og:locale" content="en">
+<meta property="og:image" content="/assets/images/notes/cs224w1.png">
+<meta property="og:image" content="/assets/images/notes/cs224w2.png">
+<meta property="og:image" content="/assets/images/notes/cs224w3.png">
+<meta property="og:image" content="/assets/images/notes/cs224w4.png">
+<meta property="og:image" content="/assets/images/notes/cs224w5.png">
+<meta property="og:image" content="/assets/images/notes/cs224w6.png">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="[cs224w笔记]4.网络聚类之谱分析方法">
+<meta name="twitter:description" content="这是斯坦福cs224w的课程笔记，根据老师讲课内容、ppt和助教的笔记和自己的理解整理的。 cs224w的资源在b站和youtube都有，不过没有字幕，jure老师的口音挺可爱的，听一俩节课也习惯了，不过有时候还是配合助教的笔记看清楚一些。 助教的笔记： https://snap-stanford.github.io/cs224w-notes/network-methods/spectral-clustering 课程网站（有ppt和作业）：http://web.stanford.edu/class/cs224w/ Spectral Clustering Here we study the important class of spectral methods for understanding networks on a global level. By “spectral” we mean the spectrum, or eigenvalues, of matrices derived from graphs, which will give us insight into the structure of the graphs themselves. In particular, we will explore spectral clustering algorithms, which take advantage of these tools for clustering nodes in graphs. The spectral clustering algorithms we will explore generally consist of three basic stages. Preprocessing: construct a matrix representation of a graph, such as the adjacency matrix (but we will explore other options) Decomposition: compute the eigenvectors and eigenvalues of the matrix, and use these to create a low-dimensional representation space Grouping: assign points to clusters based on their representation in this space *英文内容来自助教的笔记 这一节讲的是用谱分析的方法来做网络聚类。 谱分析就是研究网络邻接矩阵的特征值和特征向量， 从而获得网络结构的一些信息。 这种方法大致分为3个步骤： 预处理： 构建表示图结构的矩阵，例如邻接矩阵以及laplacian矩阵。 分解： 计算特征值和特征向量。用它们来表示节点。 聚类： 将节点根据它们在representation 空间中的情况聚类。 Graph Partitioning Let’s formalize the task we would like to solve. We start out with an undirected graph G(V,E). Our goal is to partition VV into two disjoint groups A,B (so A∩B=∅ and A∪B=V) in a way that maximizes the number of connections internal to the groups and minimizes the number of connections between the two groups. To further formalize the objective, let’s introduce some terminology: 首先对问题作出定义： Cut: how much connection there is between two disjoint sets of nodes. cut(A,B)=∑i∈A,j∈Bwij where wij is the weight of the edge between nodes i and j. 即类A和类B之间的边的总和，如果是有权重的，就是总加权和。 Minimum cut:  使得两个部分之间联系最少的分割。 Since we want to minimize the number of connections between A and B, we might decide to make the minimum cut our objective. However, we find that we end up with very unintuitive clusters this way – we can often simply set A to be a single node with very few outgoing connections, and B to be the rest of the network, to get a very small cut. What we need is a measure that also considers internal cluster connectivity. 但是仅仅考虑两个分割之间的边数是不够的，例如有一个悬挂节点，那么它和网络其他部分的边数为1, 把它作为一个类，两个类就会非常不平衡。 所以，也要考虑到聚类的内部联系。用 conductance 来衡量聚类的好坏，conductance越小，越好。 Enter the conductance, which balances between-group and within-group connectivity concerns. We define  where the total (weighted) degree of the nodes in A. We can roughly think of conductance as analogous to a surface area to volume ratio: the numerator is the area of the shared surface between A and B, and the denominator measures volume while trying to ensure A and B have similar volumes. Because of this nuanced measure, picking A and B to minimize the conductance results in more balanced partitions than minimizing the cut. The challenge then becomes to efficiently find a good partition, since minimizing conductance is NP-hard. 最小化conductance是一个NP-Hard问题。 spectral graph partitioning 首先定义图的邻接矩阵A。 然后假设有一个vector x， x是所有顶点的label。 那么Ax = y ，yi的意义就是： 节点i 的所有邻居的label的总和。 特征值和特征向量的意义？ Ax = λx，意味着，有一种特殊的节点的labeling 方式，使得 我们把一个节点i的所有邻居的label加起来，作为这个节点的新label，这个label就只是原来分配的label的λ倍， 且这个倍数是对所有的节点都一样的。 Enter spectral graph partitioning, a method that will allow us to pin down the conductance using eigenvectors. We’ll start by introducing some basic techniques in spectral graph theory. The goal of spectral graph theory is to analyze the “spectrum” of matrices representing graphs. By spectrum we mean the set Λ={λ1,…,λn} of eigenvalues λiλi of a matrix representing a graph, in order of their magnitudes, along with their corresponding eigenvalues. For example, the largest eigenvector/eigenvalue pair for the adjacency matrix of a d-regular graph is the all-ones vector x=(1,1,…,1), with eigenvalue λ=d. 可以证明， d-regular 的图中， d就是邻接矩阵最大的特征值。（1,1,…1)是它对应的唯一的特征向量。 Exercise: what are some eigenvectors for a disconnected graph with two components, each component d-regular? Note that by the spectral theorem, the adjacency matrix (which is real and symmetric) has a complete spectrum of orthogonal eigenvectors. 然后，如果是有两个连通部分，每个都是d-regular的，那么我们把一边标记为0，一边标为1， x=(0,0,..0,1,1,..1), Ax=lambdax， λ就是d。同样，也可以把一边标为1一边标为0.所以当有两个联通部分的时候， λn=λn-1. multiplicity=2（也就是λ的出现次数）。 当有k个联通部分，λn的multiplicity就是k。 What kinds of matrices can we analyze using spectral graph theory? The adjacency matrix: this matrix is a good starting point due to its direct relation to graph structure. It also has the important property of being symmetric, which means that it has a complete spectrum of real-valued, orthogonal eigenvectors.A的特征向量是正交的！！！所以，xn · xn-1=0, 如果图是d-regular连通图，那么xn=(1,1,1,…), 那么xn-1的元素和必须为0. 那么 xn-1中的元素会有一些&amp;gt;0, 有一些小于0！ 它就把点集分成了两半！ Laplacian matrix ： 性质： L 的对角线是 i的度数， 而在i，j 相连的地方，Lij=-1. x=（1，1, …1） 那么 Lx=0. 所以， λ=λ1=0 最小的那个特征值是0. 那么，所有特征值都是非负的。 L也是实对称阵， 那么特征向量也都是正交的，并且有n个特征值。 In particular, λ2, the second smallest eigenvalue of L, is already fascinating and studying it will let us make big strides in understanding graph clustering. By the theory of Rayleigh quotients, we have that where w1is the eigenvector corresponding to eigenvalue λ1; in other words, we minimize the objective in the subspace of vectors orthogonal to the first eigenvector in order to find the second eigenvector (remember that L is symmetric and thus has an orthogonal basis of eigenvalues). 就会变成： 这个目标的意义就是， xi - xj可以看作是节点i和节点j的label的距离，而当ijlabel 一个为正一个为负的时候，他们的距离平方就会大，如果是同一个分组的，平方和就会小。 那么这个式子就是在将节点分成两半，然后要横跨两个部分的边越少越好。（同一边的越多越好） how to find optimal cut （Fiedler） 这个yi 只能取1或负1，是节点的label。这个目标实际上和λ2的目标很相似，只不过λ2那个式子里，xlabel是可以取任意实值的。但是，这个没办法求出精确解， 所以，有了下面的约束，并且让y可以取任意实值：因为和y的大小没有关系，所以可以约束 y =1， 而 就是让 A == B 的一个约束。 所以， λ2 = min f(y) 而， x = arg miny f(y) y的解就是λ2对应的特征向量。 Now that we have a link between an eigenvalue of L and graph partitioning, let’s push the connection further and see if we can get rid of the hard |A|=|B| constraint – maybe there is a link between the more flexible conductance measure and λ2. Let’s rephrase conductance here in the following way: if a graph Gis partitioned into A and B where |A|≤|B| , then the conductance of the cut is defined as β=cut(A,B)/|A| . A result called the Cheeger inequality links β to λ2: in particular,  where kmax is the maximum node degree in the graph. The upper bound on λ2 is most useful to us for graph partitioning, since we are trying to minimize the conductance; it says that λ2 gives us a good estimate of the conductance – we never overestimate it more than by a factor of 2! The corresponding eigenvector x is defined by xi=−1/a if i∈A and xj=1/b if i∈B ; the signs of the entries of x give us the partition assignments of each node. λ2可以作为分割的metrics conductance 的一个良好近似，因为λ2≤ 2β， 所以估计值比真实值大最多一倍。 Spectral Clustering 实做 算出图的Laplacian matrix L 计算出L 的特征值λ和特征矩阵x ， 第二小的那个λ2 对应的特征向量x2， 对应了每个节点的label grouping，决定x2 从哪个值分成两个partition，一般是0 K 个partition怎么办 recursively cut into 2 partitions cluster multiple eigenvectors， 不仅是看x2， 也看x3， x4……，一个节点就会由p个值来label， 然后可以把这些在p维空间聚类。 如何选择有多少个聚类？ 如何确定k？ eigengap： 两个相邻的特征值的绝对值差。 Most stable clustering is generally given by the value k that maximizes eigengap Δk （这里的特征值是从大到小排序的，取从大到小扫描，两个相邻值相差最大的k） Motif-Based Spectral Clustering What if we want to cluster by higher-level patterns than raw edges? We can instead cluster graph motifs into “modules”. We can do everything in an analogous way. Let’s start by proposing analogous definitions for cut, volume and conductance: motifs cut：cutM(S): 是一些节点在一个partition，而另一些节点在另一个partition中的motifs的数量。 volm(S): 是S中motif m的节点的数量。 motif conductance： 找到optimal cut 也一样是np-hard问题 算法： preprocessing： 把原来的图转变为 一个 weighted graph，边的权重= 这条边参与motif的个数。 apply spectral cluster： 根据转化后的加权图，算出它的邻接矩阵A和laplacian矩阵L。 并且求L的特征值和特征向量 λ2和x2 grouping： 对节点按x2中的值从小到大排序， 然后分别从第i个节点处分割， 每次分割算出在第i个节点分割的motif conductance， conductance 最小的那个就是近似最好的分割。 这样比直接从0分成两半要好。 这个近似也是有可证明的保障的： Again, we can prove a motif version of the Cheeger inequality to show that the motif conductance found by our algorithm is bounded above by  , where  is the optimal conductance.">
+<meta name="twitter:image" content="/assets/images/notes/cs224w1.png">
+
+
+<script type="text/javascript" id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '',
+    scheme: 'Muse',
+    sidebar: {"position":"right","display":"post","offset":12,"offset_float":0,"b2t":false,"scrollpercent":false},
+    fancybox: true,
+    motion: true,
+    duoshuo: {
+      userId: '0',
+      author: 'Author'
+    },
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    }
+  };
+</script>
+
+
+
+  <link rel="canonical" href="http://localhost:4000/"/>
+
+
+
+
+
+  <title>[cs224w笔记]4.网络聚类之谱分析方法 | Shutong Chen's Blog</title>
+  
+
+
+
+
+<script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+            (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+          m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+  ga('create', 'G-M4GDDK5F1T', 'auto');
+  ga('send', 'pageview');
+</script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" lang="en">
+
+  
+  
+
+  <div class="container sidebar-position-right page-post-detail ">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"> <div class="site-brand-wrapper">
+  <div class="site-meta ">
+    
+
+    <div class="custom-logo-site-title">
+      <a href="/"  class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">Shutong Chen's Blog</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+      
+        <h1 class="site-subtitle" itemprop="description"></h1>
+      
+  </div>
+
+  <div class="site-nav-toggle">
+    <button>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+<nav class="site-nav">
+  
+
+  
+    <ul id="menu" class="menu">
+      
+        
+        
+        
+        <li class="menu-item menu-item-home">
+          <a href="/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-home"></i> <br />
+            
+            Home
+          </a>
+        </li>
+      
+        
+        
+        
+        <li class="menu-item menu-item-categories">
+          <a href="/categories/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-th"></i> <br />
+            
+            Categories
+          </a>
+        </li>
+      
+        
+        
+        
+        <li class="menu-item menu-item-archives">
+          <a href="/archives/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-archive"></i> <br />
+            
+            Archives
+          </a>
+        </li>
+      
+        
+        
+        
+        <li class="menu-item menu-item-tags">
+          <a href="/tags/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-tags"></i> <br />
+            
+            Tags
+          </a>
+        </li>
+      
+        
+        
+        
+        <li class="menu-item menu-item-sitemap">
+          <a href="/sitemap.xml" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-sitemap"></i> <br />
+            
+            Sitemap
+          </a>
+        </li>
+      
+
+      
+        <li class="menu-item menu-item-search">
+          
+            <a href="javascript:;" class="popup-trigger">
+          
+            
+              <i class="menu-item-icon fa fa-search fa-fw"></i> <br />
+            
+            Search
+          </a>
+        </li>
+      
+    </ul>
+  
+
+  
+    <div class="site-search">
+      
+  <div class="popup search-popup local-search-popup">
+  <div class="local-search-header clearfix">
+    <span class="search-icon">
+      <i class="fa fa-search"></i>
+    </span>
+    <span class="popup-btn-close">
+      <i class="fa fa-times-circle"></i>
+    </span>
+    <div class="local-search-input-wrapper">
+      <input autocomplete="off"
+             placeholder="Searching..." spellcheck="false"
+             type="text" id="local-search-input">
+    </div>
+  </div>
+  <div id="local-search-result"></div>
+</div>
+
+
+
+    </div>
+  
+</nav>
+
+
+
+ </div>
+    </header>
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+<div id="posts" class="posts-expand">
+  
+  
+
+  
+
+  
+  
+  
+
+  <article class="post post-type- " itemscope itemtype="http://schema.org/Article">
+    <link itemprop="mainEntityOfPage" href="http://localhost:4000/social%20network/graph-based%20machine%20learning/2020/03/14/cs224w4/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="Shutong Chen">
+      <meta itemprop="description" content="">
+      <meta itemprop="image" content="/assets/images/avatar.jpg">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Shutong Chen's Blog">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h2 class="post-title" itemprop="name headline">
+          
+          
+            [cs224w笔记]4.网络聚类之谱分析方法
+          
+        </h2>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">Posted on</span>
+              
+              <time title="Post created" itemprop="dateCreated datePublished" datetime="2020-03-14T00:00:00+08:00">
+                2020-03-14
+              </time>
+            
+
+            
+              <span class="post-meta-divider">|</span>
+            
+
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-check-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">Post modified</span>
+              
+              <time title="Post modified" itemprop="dateModified" datetime="">
+                
+              </time>
+            
+          </span>
+
+          
+            <span class="post-category" >
+            
+              <span class="post-meta-divider">|</span>
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">In</span>
+              
+              
+                
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/category/#/social%20network" itemprop="url" rel="index">
+                    <span itemprop="name">social network</span>
+                  </a>
+                </span>
+
+                
+                
+                  , 
+                
+              
+                
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/category/#/graph-based%20machine%20learning" itemprop="url" rel="index">
+                    <span itemprop="name">graph-based machine learning</span>
+                  </a>
+                </span>
+
+                
+                
+              
+            </span>
+          
+
+          
+            
+              <span class="post-comments-count">
+                <span class="post-meta-divider">|</span>
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-comment-o"></i>
+                </span>
+                <a href="/social%20network/graph-based%20machine%20learning/2020/03/14/cs224w4/#comments" itemprop="discussionUrl">
+                  <span class="post-comments-count wf-count-unit" wf-page-url="http://localhost:4000/social%20network/graph-based%20machine%20learning/2020/03/14/cs224w4/" itemprop="commentCount"></span>
+                </a>
+              </span>
+            
+          
+
+          
+          
+             <span id="/social%20network/graph-based%20machine%20learning/2020/03/14/cs224w4/" class="leancloud_visitors" data-flag-title="[cs224w笔记]4.网络聚类之谱分析方法">
+               <span class="post-meta-divider">|</span>
+               <span class="post-meta-item-icon">
+                 <i class="fa fa-eye"></i>
+               </span>
+               
+                 <span class="post-meta-item-text">Visitors </span>
+               
+                 <span class="leancloud-visitors-count"></span>
+             </span>
+          
+
+          
+
+          
+
+          
+            
+                <div class="post-description">
+                    
+                </div>
+            
+          
+
+        </div>
+      </header>
+    
+
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        
+  
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  <p>这是斯坦福cs224w的课程笔记，根据老师讲课内容、ppt和助教的笔记和自己的理解整理的。 cs224w的资源在b站和youtube都有，不过没有字幕，jure老师的口音挺可爱的，听一俩节课也习惯了，不过有时候还是配合助教的笔记看清楚一些。</p>
+
+<p>助教的笔记： https://snap-stanford.github.io/cs224w-notes/network-methods/spectral-clustering</p>
+
+<p>课程网站（有ppt和作业）：http://web.stanford.edu/class/cs224w/</p>
+
+<hr />
+<h1 id="spectral-clustering">Spectral Clustering</h1>
+
+<p>Here we study the important class of spectral methods for understanding networks on a global level. By “spectral” we mean the spectrum, or eigenvalues, of matrices derived from graphs, which will give us insight into the structure of the graphs themselves. In particular, we will explore spectral clustering algorithms, which take advantage of these tools for clustering nodes in graphs.</p>
+
+<p>The spectral clustering algorithms we will explore generally consist of three basic stages.</p>
+
+<ul>
+  <li>Preprocessing: construct a matrix representation of a graph, such as the adjacency matrix (but we will explore other options)</li>
+  <li>Decomposition: compute the eigenvectors and eigenvalues of the matrix, and use these to create a low-dimensional representation space</li>
+  <li>Grouping: assign points to clusters based on their representation in this space</li>
+</ul>
+
+<p>*英文内容来自助教的笔记</p>
+
+<p>这一节讲的是用谱分析的方法来做网络聚类。 谱分析就是研究网络邻接矩阵的特征值和特征向量， 从而获得网络结构的一些信息。 这种方法大致分为3个步骤：</p>
+<ul>
+  <li>预处理： 构建表示图结构的矩阵，例如邻接矩阵以及laplacian矩阵。</li>
+  <li>分解： 计算特征值和特征向量。用它们来表示节点。</li>
+  <li>聚类： 将节点根据它们在representation 空间中的情况聚类。</li>
+</ul>
+
+<hr />
+<h1 id="graph-partitioning">Graph Partitioning</h1>
+
+<p>Let’s formalize the task we would like to solve. We start out with an undirected graph G(V,E). Our goal is to partition VV into two disjoint groups A,B (so A∩B=∅ and A∪B=V) in a way that maximizes the number of connections internal to the groups and minimizes the number of connections between the two groups.</p>
+
+<p>To further formalize the objective, let’s introduce some terminology: 首先对问题作出定义：</p>
+
+<ul>
+  <li>
+    <p>Cut: how much connection there is between two disjoint sets of nodes. cut(A,B)=∑i∈A,j∈Bwij where wij is the weight of the edge between nodes i and j. 即类A和类B之间的边的总和，如果是有权重的，就是总加权和。</p>
+
+    <script type="math/tex; mode=display">cut(A, B) = \sum_{i \in A, j \in B} w_{ij}</script>
+  </li>
+  <li>
+    <p>Minimum cut:  使得两个部分之间联系最少的分割。</p>
+
+    <script type="math/tex; mode=display">argminA,Bcut(A,B)</script>
+  </li>
+</ul>
+
+<p>Since we want to minimize the number of connections between A and B, we might decide to make the minimum cut our objective. However, we find that we end up with very unintuitive clusters this way – we can often simply set A to be a single node with very few outgoing connections, and B to be the rest of the network, to get a very small cut. What we need is a measure that also considers internal cluster connectivity.</p>
+
+<p>但是仅仅考虑两个分割之间的边数是不够的，例如有一个悬挂节点，那么它和网络其他部分的边数为1, 把它作为一个类，两个类就会非常不平衡。 所以，也要考虑到聚类的内部联系。用 conductance 来衡量聚类的好坏，conductance越小，越好。</p>
+
+<p>Enter the <strong>conductance</strong>, which balances between-group and within-group connectivity concerns. We define </p>
+
+<script type="math/tex; mode=display">\phi(A, B) = \frac{cut(A, B)}{min(vol(A), vol(B))}</script>
+
+<p>where</p>
+
+<script type="math/tex; mode=display">vol(A) = \sum_{i \in A} k_i</script>
+
+<p>the total (weighted) degree of the nodes in A. We can roughly think of conductance as analogous to a surface area to volume ratio: the numerator is the area of the shared surface between A and B, and the denominator measures volume while trying to ensure A and B have similar volumes. Because of this nuanced measure, picking A and B to minimize the conductance results in more balanced partitions than minimizing the cut. The challenge then becomes to efficiently find a good partition, since minimizing conductance is NP-hard.
+最小化conductance是一个NP-Hard问题。</p>
+
+<hr />
+<h1 id="spectral-graph-partitioning">spectral graph partitioning</h1>
+
+<ol>
+  <li>
+    <p>首先定义图的邻接矩阵A。 然后假设有一个vector x， x是所有顶点的label。 那么Ax = y ，yi的意义就是：</p>
+
+    <p>节点i 的所有邻居的label的总和。</p>
+  </li>
+  <li>
+    <p>特征值和特征向量的意义？ Ax = λx，意味着，有一种特殊的节点的labeling 方式，使得 我们把一个节点i的所有邻居的label加起来，作为这个节点的新label，这个label就只是原来分配的label的λ倍， 且这个倍数是对所有的节点都一样的。</p>
+  </li>
+</ol>
+
+<p>Enter spectral graph partitioning, a method that will allow us to pin down the conductance using eigenvectors. We’ll start by introducing some basic techniques in spectral graph theory.</p>
+
+<p>The goal of spectral graph theory is to analyze the “spectrum” of matrices representing graphs. By spectrum we mean the set Λ={λ1,…,λn} of eigenvalues λiλi of a matrix representing a graph, in order of their magnitudes, along with their corresponding eigenvalues. For example, the largest eigenvector/eigenvalue pair for the adjacency matrix of a d-regular graph is the all-ones vector x=(1,1,…,1), with eigenvalue λ=d.</p>
+
+<p>可以证明， d-regular 的图中， d就是邻接矩阵最大的特征值。（1,1,…1)是它对应的唯一的特征向量。</p>
+
+<p>Exercise: what are some eigenvectors for a disconnected graph with two components, each component d-regular? Note that by the spectral theorem, the adjacency matrix (which is real and symmetric) has a complete spectrum of orthogonal eigenvectors.</p>
+
+<p>然后，如果是有两个连通部分，每个都是d-regular的，那么我们把一边标记为0，一边标为1， x=(0,0,..0,1,1,..1), Ax=lambdax， λ就是d。同样，也可以把一边标为1一边标为0.所以当有两个联通部分的时候， λn=λn-1. multiplicity=2（也就是λ的出现次数）。 当有k个联通部分，λn的multiplicity就是k。</p>
+
+<p>What kinds of matrices can we analyze using spectral graph theory?</p>
+
+<ol>
+  <li>
+    <p>The adjacency matrix: this matrix is a good starting point due to its direct relation to graph structure. It also has the important property of being symmetric, which means that it has a complete spectrum of real-valued, orthogonal eigenvectors.A的特征向量是正交的！！！所以，xn · xn-1=0, 如果图是d-regular连通图，那么xn=(1,1,1,…), 那么xn-1的元素和必须为0.</p>
+
+    <p>那么 xn-1中的元素会有一些&gt;0, 有一些小于0！ 它就把点集分成了两半！</p>
+
+    <p><img src="/assets/images/notes/cs224w1.png" alt="https://s3-us-west-2.amazonaws.com/secure.notion-static.com/83ee35a5-c5b0-4892-b83e-3c6c7c3f72cf/Untitled.png" /></p>
+
+    <ol>
+      <li>Laplacian matrix ：</li>
+    </ol>
+
+    <script type="math/tex; mode=display">L=D-A</script>
+
+    <p>性质：</p>
+
+    <ol>
+      <li>L 的对角线是 i的度数， 而在i，j 相连的地方，Lij=-1.</li>
+      <li>x=（1，1, …1） 那么 Lx=0.  所以， λ=λ1=0 最小的那个特征值是0.</li>
+      <li>那么，所有特征值都是非负的。</li>
+      <li>L也是实对称阵， 那么特征向量也都是正交的，并且有n个特征值。</li>
+    </ol>
+
+    <p>In particular, λ2, the second smallest eigenvalue of L, is already fascinating and studying it will let us make big strides in understanding graph clustering. By the theory of Rayleigh quotients, we have that</p>
+
+    <script type="math/tex; mode=display">\lambda_2 = \min_{x: x^T w_1 = 0} \frac{x^T L x}{x^T x}</script>
+
+    <p>where w1is the eigenvector corresponding to eigenvalue λ1; in other words, we minimize the objective in the subspace of vectors orthogonal to the first eigenvector in order to find the second eigenvector (remember that L is symmetric and thus has an orthogonal basis of eigenvalues).</p>
+
+    <p><img src="/assets/images/notes/cs224w2.png" alt="https://s3-us-west-2.amazonaws.com/secure.notion-static.com/74dbf99d-6d07-4a50-8b07-ebb0573390db/Untitled.png" /></p>
+
+    <p>就会变成：</p>
+
+    <p><img src="/assets/images/notes/cs224w3.png" alt="https://s3-us-west-2.amazonaws.com/secure.notion-static.com/e1164242-182b-4e1c-baa7-82a63d218805/Untitled.png" /></p>
+
+    <p>这个目标的意义就是， xi - xj可以看作是节点i和节点j的label的距离，而当ijlabel 一个为正一个为负的时候，他们的距离平方就会大，如果是同一个分组的，平方和就会小。 那么这个式子就是在将节点分成两半，然后要横跨两个部分的边越少越好。（同一边的越多越好）</p>
+  </li>
+</ol>
+
+<hr />
+<h2 id="how-to-find-optimal-cut-fiedler">how to find optimal cut （Fiedler）</h2>
+
+<p><img src="/assets/images/notes/cs224w4.png" alt="https://s3-us-west-2.amazonaws.com/secure.notion-static.com/dcec1010-402a-41ea-a427-04f144d12f22/Untitled.png" /></p>
+
+<table>
+  <tbody>
+    <tr>
+      <td>这个yi 只能取1或负1，是节点的label。这个目标实际上和λ2的目标很相似，只不过λ2那个式子里，xlabel是可以取任意实值的。但是，这个没办法求出精确解， 所以，有了下面的约束，并且让y可以取任意实值：因为和y的大小没有关系，所以可以约束</td>
+      <td>y</td>
+      <td>=1， 而</td>
+    </tr>
+  </tbody>
+</table>
+
+<script type="math/tex; mode=display">\sum_{i} y_{i}=0</script>
+
+<table>
+  <tbody>
+    <tr>
+      <td>就是让</td>
+      <td>A</td>
+      <td>==</td>
+      <td>B</td>
+      <td>的一个约束。</td>
+    </tr>
+  </tbody>
+</table>
+
+<p><img src="/assets/images/notes/cs224w5.png" alt="https://s3-us-west-2.amazonaws.com/secure.notion-static.com/ea7bfa0b-b9fc-4297-a997-e545321abba9/Untitled.png" /></p>
+
+<p>所以， λ2 = min  f(y)</p>
+
+<p>而， x = arg miny f(y)  y的解就是λ2对应的特征向量。</p>
+
+<p>Now that we have a link between an eigenvalue of L and graph partitioning, let’s push the connection further and see if we can get rid of the hard |A|=|B| constraint – maybe there is a link between the more flexible conductance measure and λ2. Let’s rephrase conductance here in the following way: if a graph Gis partitioned into A and B where |A|≤|B| , then the conductance of the cut is defined as β=cut(A,B)/|A| . A result called the Cheeger inequality links β to λ2: in particular, </p>
+
+<script type="math/tex; mode=display">\frac{\beta^2}{2k_{max}} \leq \lambda_2 \leq 2\beta</script>
+
+<p>where kmax is the maximum node degree in the graph. The upper bound on λ2 is most useful to us for graph partitioning, since we are trying to minimize the conductance; it says that λ2 gives us a good estimate of the conductance – we never overestimate it more than by a factor of 2! The corresponding eigenvector x is defined by xi=−1/a if i∈A and xj=1/b if i∈B ; the signs of the entries of x give us the partition assignments of each node.   λ2可以作为分割的metrics <strong>conductance 的一个良好近似，因为λ2≤ 2β， 所以估计值比真实值大最多一倍。</strong></p>
+
+<hr />
+<h1 id="spectral-clustering-实做">Spectral Clustering 实做</h1>
+
+<ul>
+  <li>算出图的Laplacian matrix  L</li>
+  <li>计算出L 的特征值λ和特征矩阵x  ， 第二小的那个λ2 对应的特征向量x2， 对应了每个节点的label</li>
+  <li>grouping，决定x2 从哪个值分成两个partition，一般是0</li>
+</ul>
+
+<hr />
+<h1 id="k-个partition怎么办">K 个partition怎么办</h1>
+
+<ul>
+  <li>recursively cut into 2 partitions</li>
+  <li>cluster multiple eigenvectors， 不仅是看x2， 也看x3， x4……，一个节点就会由p个值来label， 然后可以把这些在p维空间聚类。</li>
+</ul>
+
+<p>如何选择有多少个聚类？ 如何确定k？</p>
+
+<ol>
+  <li>
+    <p>eigengap： 两个相邻的特征值的绝对值差。</p>
+
+    <p><strong>Most stable clustering is generally given by the value k that maximizes eigengap Δk  （这里的特征值是从大到小排序的，取从大到小扫描，两个相邻值相差最大的k）</strong></p>
+
+    <p><img src="/assets/images/notes/cs224w6.png" alt="https://s3-us-west-2.amazonaws.com/secure.notion-static.com/f93443c2-9203-4f99-84ba-c46dbe1366ea/Untitled.png" /></p>
+  </li>
+</ol>
+
+<hr />
+<h1 id="motif-based-spectral-clustering">Motif-Based Spectral Clustering</h1>
+
+<p>What if we want to cluster by higher-level patterns than raw edges? We can instead cluster graph motifs into “modules”. We can do everything in an analogous way. Let’s start by proposing analogous definitions for cut, volume and conductance:</p>
+
+<ol>
+  <li>motifs cut：cutM(S): 是一些节点在一个partition，而另一些节点在另一个partition中的motifs的数量。</li>
+  <li>volm(S): 是S中motif m的节点的数量。</li>
+  <li>
+    <p>motif conductance：</p>
+
+    <script type="math/tex; mode=display">\phi(S) = cut_M(S) / vol_M(S)</script>
+  </li>
+</ol>
+
+<p>找到optimal cut 也一样是np-hard问题</p>
+
+<p>算法：</p>
+<ol>
+  <li>
+    <p>preprocessing： 把原来的图转变为 一个 weighted graph，边的权重= 这条边参与motif的个数。</p>
+  </li>
+  <li>
+    <p>apply spectral cluster： 根据转化后的加权图，算出它的邻接矩阵A和laplacian矩阵L。 并且求L的特征值和特征向量 λ2和x2</p>
+  </li>
+  <li>
+    <p>grouping： 对节点按x2中的值从小到大排序， 然后分别从第i个节点处分割， 每次分割算出在第i个节点分割的motif conductance， conductance 最小的那个就是近似最好的分割。  这样比直接从0分成两半要好。</p>
+  </li>
+</ol>
+
+<p>这个近似也是有可证明的保障的：</p>
+
+<p>Again, we can prove a motif version of the Cheeger inequality to show that the motif conductance found by our algorithm is bounded above by </p>
+
+<script type="math/tex; mode=display">4\sqrt{\phi_M^*}</script>
+
+<p>, where </p>
+
+<script type="math/tex; mode=display">\phi_M^*</script>
+
+<p>is the optimal conductance.</p>
+
+
+      
+    </div>
+
+    <div>
+      
+        
+
+      
+    </div>
+
+    <div>
+      
+        
+
+      
+    </div>
+
+    <div>
+      
+        
+
+      
+    </div>
+
+    <footer class="post-footer">
+      
+        <div class="post-tags">
+          
+            
+            <a href="/tag/#/notes" rel="tag"># notes</a>
+          
+        </div>
+      
+
+      
+      
+      
+      
+      
+
+      
+      
+        <div class="post-nav" id="post-nav-id">
+          <div class="post-nav-next post-nav-item">
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+              <a href="/paper%20reading/2020/03/01/privacy/" rel="prev" title="[论文阅读笔记]Please Forget Where I Was Last Summer:The Privacy Risks of Public Location (Meta)Data 社交应用位置元数据的隐私暴露问题">
+                [论文阅读笔记]Please Forget Where I Was Last Summer:The Privacy Risks of Public Location (Meta)Data 社交应用位置元数据的隐私暴露问题 <i class="fa fa-chevron-right"></i>
+              </a>
+            
+          </div>
+        </div>
+      
+      
+
+      
+    </footer>
+  </article>
+
+  <div class="post-spread">
+    
+  </div>
+</div>
+
+
+          </div>
+          
+
+
+          
+  <div class="comments" id="comments">
+    
+      <div class="wildfire_thread"></div>
+    
+  </div>
+
+
+        </div>
+        
+          
+
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    <div class="sidebar-inner">
+
+      
+        
+        
+        
+
+
+
+
+
+
+
+      
+
+      
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap" >
+            Table of Contents
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview">
+            Overview
+          </li>
+        </ul>
+      
+
+      <section class="site-overview sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+          <img class="site-author-image" itemprop="image"
+               src="/assets/images/avatar.jpg"
+               alt="Shutong Chen" />
+          <p class="site-author-name" itemprop="name">Shutong Chen</p>
+           
+              <p class="site-description motion-element" itemprop="description"></p>
+           
+        </div>
+        <nav class="site-state motion-element">
+
+          
+            <div class="site-state-item site-state-posts">
+              <a href="/archives/">
+                <span class="site-state-item-count">9</span>
+                <span class="site-state-item-name">posts</span>
+              </a>
+            </div>
+          
+
+          
+            
+            
+            <div class="site-state-item site-state-categories">
+              <a href="/categories/">
+                <span class="site-state-item-count">4</span>
+                <span class="site-state-item-name">categories</span>
+              </a>
+            </div>
+          
+
+          
+            
+            
+            <div class="site-state-item site-state-tags">
+              <a href="/tags/">
+                <span class="site-state-item-count">10</span>
+                <span class="site-state-item-name">tags</span>
+              </a>
+            </div>
+          
+
+        </nav>
+
+        
+        
+        
+          <div class="feed-link motion-element">
+            <a href="/atom.xml" rel="alternate">
+              <i class="fa fa-rss"></i>
+              RSS
+            </a>
+          </div>
+        
+
+        <div class="links-of-author motion-element">
+          
+            
+              
+              
+              <span class="links-of-author-item">
+                <a href="https://github.com/sillywutong" target="_blank" title="GitHub">
+                  
+                    <i class="fa fa-fw fa-github"></i>
+                  
+                  GitHub
+                </a>
+              </span>
+            
+              
+              
+              <span class="links-of-author-item">
+                <a href="https://weibo.com/sillywutong" target="_blank" title="微博">
+                  
+                    <i class="fa fa-fw fa-globe"></i>
+                  
+                  微博
+                </a>
+              </span>
+            
+          
+        </div>
+
+        
+        
+
+        
+        
+
+        
+
+
+      </section>
+
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+            
+            
+            
+
+
+
+
+
+
+
+
+            
+              <div class="post-toc-content">
+    <ol class=nav>
+      <li class="nav-item nav-level-1"> <a class="nav-link" href="#spectral-clustering"> <span class="nav-number">1</span> <span class="nav-text">Spectral Clustering</span> </a> </li> <li class="nav-item nav-level-1"> <a class="nav-link" href="#graph-partitioning"> <span class="nav-number">2</span> <span class="nav-text">Graph Partitioning</span> </a> </li> <li class="nav-item nav-level-1"> <a class="nav-link" href="#spectral-graph-partitioning"> <span class="nav-number">3</span> <span class="nav-text">spectral graph partitioning</span> </a> <ol class="nav-child"> <li class="nav-item nav-level-2"> <a class="nav-link" href="#how-to-find-optimal-cut-fiedler"> <span class="nav-number">3.1</span> <span class="nav-text">how to find optimal cut （Fiedler）</span> </a> </li> </ol> </li> <li class="nav-item nav-level-1"> <a class="nav-link" href="#spectral-clustering-实做"> <span class="nav-number">4</span> <span class="nav-text">Spectral Clustering 实做</span> </a> </li> <li class="nav-item nav-level-1"> <a class="nav-link" href="#k-个partition怎么办"> <span class="nav-number">5</span> <span class="nav-text">K 个partition怎么办</span> </a> </li> <li class="nav-item nav-level-1"> <a class="nav-link" href="#motif-based-spectral-clustering"> <span class="nav-number">6</span> <span class="nav-text">Motif-Based Spectral Clustering</span> </a> </li>
+    </ol>
+  </div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
+      
+
+      
+
+    </div>
+  </aside>
+
+        
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright" >
+  
+  
+  &copy; 
+  <span itemprop="copyrightYear">2020</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Shutong Chen</span>
+</div>
+
+
+<div class="powered-by">
+  Powered by <a class="theme-link" href="https://jekyllrb.com">Jekyll</a>
+</div>
+
+<div class="theme-info">
+  Theme -
+  <a class="theme-link" href="https://github.com/simpleyyt/jekyll-theme-next">
+    NexT.Muse
+  </a>
+</div>
+
+
+        
+
+        
+      </div>
+    </footer>
+
+    
+      <div class="back-to-top">
+        <i class="fa fa-arrow-up"></i>
+        
+      </div>
+    
+
+  </div>
+
+  
+
+<script type="text/javascript">
+  if (Object.prototype.toString.call(window.Promise) !== '[object Function]') {
+    window.Promise = null;
+  }
+</script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+   
+  
+  
+  
+  
+  
+  <script type="text/javascript" src="/assets/lib/jquery/index.js?v=2.1.3"></script>
+
+  
+  
+  
+  
+  
+  <script type="text/javascript" src="/assets/lib/fastclick/lib/fastclick.min.js?v=1.0.6"></script>
+
+  
+  
+  
+  
+  
+  <script type="text/javascript" src="/assets/lib/jquery_lazyload/jquery.lazyload.js?v=1.9.7"></script>
+
+  
+  
+  
+  
+  
+  <script type="text/javascript" src="/assets/lib/velocity/velocity.min.js?v=1.2.1"></script>
+
+  
+  
+  
+  
+  
+  <script type="text/javascript" src="/assets/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+
+  
+  
+  
+  
+  
+  <script type="text/javascript" src="/assets/lib/fancybox/source/jquery.fancybox.pack.js?v=2.1.5"></script>
+
+
+  
+
+
+  <script type="text/javascript" src="/assets/js/src/utils.js?v=5.1.1"></script>
+
+  <script type="text/javascript" src="/assets/js/src/motion.js?v=5.1.1"></script>
+
+
+
+  
+  
+
+  <script type="text/javascript" src="/assets/js/src/scrollspy.js?v=5.1.1"></script>
+<script type="text/javascript" src="/assets/js/src/post-details.js?v=5.1.1"></script>
+
+
+  
+
+
+  <script type="text/javascript" src="/assets/js/src/bootstrap.js?v=5.1.1"></script>
+
+
+
+  
+
+
+  
+
+
+
+
+	
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+  
+
+    
+
+  
+
+
+
+
+
+  <script type="text/javascript">
+    var wildfireConfig = () => ({
+      
+      useDev: true,
+      
+      
+      version: '0.5.6',
+      
+      databaseProvider: 'firebase',
+      databaseConfig: {
+        
+        apiKey: 'AIzaSyBfR8WwkHnr8Np6SCmYBIelDeLsg1O9reE',
+        authDomain: 'githubblog-b6de2.firebaseapp.com',
+        databaseURL: 'https://githubblog-b6de2.firebaseio.com',
+        projectId: 'githubblog-b6de2',
+        storageBucket: 'githubblog-b6de2.appspot.com',
+        messagingSenderId: '812229193086'
+        
+      },
+      pageURL: 'http://localhost:4000/social%20network/graph-based%20machine%20learning/2020/03/14/cs224w4/',
+      pageTitle: '[cs224w笔记]4.网络聚类之谱分析方法',
+      
+      theme: 'light',
+      
+      
+      locale: 'en',
+      
+      
+    });
+  </script>
+  
+    
+    <script src="https://unpkg.com/wildfire-comment@1.2.5"></script>
+    
+  
+  <script src="https://unpkg.com/wf-count"></script>
+
+
+
+  
+
+
+  <script type="text/javascript">
+    // Popup Window;
+    var isfetched = false;
+    var isXml = true;
+    // Search DB path;
+    var search_path = "";
+    if (search_path.length === 0) {
+      search_path = "search.xml";
+    } else if (/json$/i.test(search_path)) {
+      isXml = false;
+    }
+    var path = "/" + search_path;
+    // monitor main search box;
+
+    var onPopupClose = function (e) {
+      $('.popup').hide();
+      $('#local-search-input').val('');
+      $('.search-result-list').remove();
+      $('#no-result').remove();
+      $(".local-search-pop-overlay").remove();
+      $('body').css('overflow', '');
+    }
+
+    function proceedsearch() {
+      $("body")
+        .append('<div class="search-popup-overlay local-search-pop-overlay"></div>')
+        .css('overflow', 'hidden');
+      $('.search-popup-overlay').click(onPopupClose);
+      $('.popup').toggle();
+      var $localSearchInput = $('#local-search-input');
+      $localSearchInput.attr("autocapitalize", "none");
+      $localSearchInput.attr("autocorrect", "off");
+      $localSearchInput.focus();
+    }
+
+    // search function;
+    var searchFunc = function(path, search_id, content_id) {
+      'use strict';
+
+      // start loading animation
+      $("body")
+        .append('<div class="search-popup-overlay local-search-pop-overlay">' +
+          '<div id="search-loading-icon">' +
+          '<i class="fa fa-spinner fa-pulse fa-5x fa-fw"></i>' +
+          '</div>' +
+          '</div>')
+        .css('overflow', 'hidden');
+      $("#search-loading-icon").css('margin', '20% auto 0 auto').css('text-align', 'center');
+
+      $.ajax({
+        url: path,
+        dataType: isXml ? "xml" : "json",
+        async: true,
+        success: function(res) {
+          // get the contents from search data
+          isfetched = true;
+          $('.popup').detach().appendTo('.header-inner');
+          var datas = isXml ? $("entry", res).map(function() {
+            return {
+              title: $("title", this).text(),
+              content: $("content",this).text(),
+              url: $("url" , this).text()
+            };
+          }).get() : res;
+          var input = document.getElementById(search_id);
+          var resultContent = document.getElementById(content_id);
+          var inputEventFunction = function() {
+            var searchText = input.value.trim().toLowerCase();
+            var keywords = searchText.split(/[\s\-]+/);
+            if (keywords.length > 1) {
+              keywords.push(searchText);
+            }
+            var resultItems = [];
+            if (searchText.length > 0) {
+              // perform local searching
+              datas.forEach(function(data) {
+                var isMatch = false;
+                var hitCount = 0;
+                var searchTextCount = 0;
+                var title = data.title.trim();
+                var titleInLowerCase = title.toLowerCase();
+                var content = data.content.trim().replace(/<[^>]+>/g,"");
+                var contentInLowerCase = content.toLowerCase();
+                var articleUrl = decodeURIComponent(data.url);
+                var indexOfTitle = [];
+                var indexOfContent = [];
+                // only match articles with not empty titles
+                if(title != '') {
+                  keywords.forEach(function(keyword) {
+                    function getIndexByWord(word, text, caseSensitive) {
+                      var wordLen = word.length;
+                      if (wordLen === 0) {
+                        return [];
+                      }
+                      var startPosition = 0, position = [], index = [];
+                      if (!caseSensitive) {
+                        text = text.toLowerCase();
+                        word = word.toLowerCase();
+                      }
+                      while ((position = text.indexOf(word, startPosition)) > -1) {
+                        index.push({position: position, word: word});
+                        startPosition = position + wordLen;
+                      }
+                      return index;
+                    }
+
+                    indexOfTitle = indexOfTitle.concat(getIndexByWord(keyword, titleInLowerCase, false));
+                    indexOfContent = indexOfContent.concat(getIndexByWord(keyword, contentInLowerCase, false));
+                  });
+                  if (indexOfTitle.length > 0 || indexOfContent.length > 0) {
+                    isMatch = true;
+                    hitCount = indexOfTitle.length + indexOfContent.length;
+                  }
+                }
+
+                // show search results
+
+                if (isMatch) {
+                  // sort index by position of keyword
+
+                  [indexOfTitle, indexOfContent].forEach(function (index) {
+                    index.sort(function (itemLeft, itemRight) {
+                      if (itemRight.position !== itemLeft.position) {
+                        return itemRight.position - itemLeft.position;
+                      } else {
+                        return itemLeft.word.length - itemRight.word.length;
+                      }
+                    });
+                  });
+
+                  // merge hits into slices
+
+                  function mergeIntoSlice(text, start, end, index) {
+                    var item = index[index.length - 1];
+                    var position = item.position;
+                    var word = item.word;
+                    var hits = [];
+                    var searchTextCountInSlice = 0;
+                    while (position + word.length <= end && index.length != 0) {
+                      if (word === searchText) {
+                        searchTextCountInSlice++;
+                      }
+                      hits.push({position: position, length: word.length});
+                      var wordEnd = position + word.length;
+
+                      // move to next position of hit
+
+                      index.pop();
+                      while (index.length != 0) {
+                        item = index[index.length - 1];
+                        position = item.position;
+                        word = item.word;
+                        if (wordEnd > position) {
+                          index.pop();
+                        } else {
+                          break;
+                        }
+                      }
+                    }
+                    searchTextCount += searchTextCountInSlice;
+                    return {
+                      hits: hits,
+                      start: start,
+                      end: end,
+                      searchTextCount: searchTextCountInSlice
+                    };
+                  }
+
+                  var slicesOfTitle = [];
+                  if (indexOfTitle.length != 0) {
+                    slicesOfTitle.push(mergeIntoSlice(title, 0, title.length, indexOfTitle));
+                  }
+
+                  var slicesOfContent = [];
+                  while (indexOfContent.length != 0) {
+                    var item = indexOfContent[indexOfContent.length - 1];
+                    var position = item.position;
+                    var word = item.word;
+                    // cut out 100 characters
+                    var start = position - 20;
+                    var end = position + 80;
+                    if(start < 0){
+                      start = 0;
+                    }
+                    if (end < position + word.length) {
+                      end = position + word.length;
+                    }
+                    if(end > content.length){
+                      end = content.length;
+                    }
+                    slicesOfContent.push(mergeIntoSlice(content, start, end, indexOfContent));
+                  }
+
+                  // sort slices in content by search text's count and hits' count
+
+                  slicesOfContent.sort(function (sliceLeft, sliceRight) {
+                    if (sliceLeft.searchTextCount !== sliceRight.searchTextCount) {
+                      return sliceRight.searchTextCount - sliceLeft.searchTextCount;
+                    } else if (sliceLeft.hits.length !== sliceRight.hits.length) {
+                      return sliceRight.hits.length - sliceLeft.hits.length;
+                    } else {
+                      return sliceLeft.start - sliceRight.start;
+                    }
+                  });
+
+                  // select top N slices in content
+
+                  var upperBound = parseInt('1');
+                  if (upperBound >= 0) {
+                    slicesOfContent = slicesOfContent.slice(0, upperBound);
+                  }
+
+                  // highlight title and content
+
+                  function highlightKeyword(text, slice) {
+                    var result = '';
+                    var prevEnd = slice.start;
+                    slice.hits.forEach(function (hit) {
+                      result += text.substring(prevEnd, hit.position);
+                      var end = hit.position + hit.length;
+                      result += '<b class="search-keyword">' + text.substring(hit.position, end) + '</b>';
+                      prevEnd = end;
+                    });
+                    result += text.substring(prevEnd, slice.end);
+                    return result;
+                  }
+
+                  var resultItem = '';
+
+                  if (slicesOfTitle.length != 0) {
+                    resultItem += "<li><a href='" + articleUrl + "' class='search-result-title'>" + highlightKeyword(title, slicesOfTitle[0]) + "</a>";
+                  } else {
+                    resultItem += "<li><a href='" + articleUrl + "' class='search-result-title'>" + title + "</a>";
+                  }
+
+                  slicesOfContent.forEach(function (slice) {
+                    resultItem += "<a href='" + articleUrl + "'>" +
+                      "<p class=\"search-result\">" + highlightKeyword(content, slice) +
+                      "...</p>" + "</a>";
+                  });
+
+                  resultItem += "</li>";
+                  resultItems.push({
+                    item: resultItem,
+                    searchTextCount: searchTextCount,
+                    hitCount: hitCount,
+                    id: resultItems.length
+                  });
+                }
+              })
+            };
+            if (keywords.length === 1 && keywords[0] === "") {
+              resultContent.innerHTML = '<div id="no-result"><i class="fa fa-search fa-5x" /></div>'
+            } else if (resultItems.length === 0) {
+              resultContent.innerHTML = '<div id="no-result"><i class="fa fa-frown-o fa-5x" /></div>'
+            } else {
+              resultItems.sort(function (resultLeft, resultRight) {
+                if (resultLeft.searchTextCount !== resultRight.searchTextCount) {
+                  return resultRight.searchTextCount - resultLeft.searchTextCount;
+                } else if (resultLeft.hitCount !== resultRight.hitCount) {
+                  return resultRight.hitCount - resultLeft.hitCount;
+                } else {
+                  return resultRight.id - resultLeft.id;
+                }
+              });
+              var searchResultList = '<ul class=\"search-result-list\">';
+              resultItems.forEach(function (result) {
+                searchResultList += result.item;
+              })
+              searchResultList += "</ul>";
+              resultContent.innerHTML = searchResultList;
+            }
+          }
+
+          if ('auto' === 'auto') {
+            input.addEventListener('input', inputEventFunction);
+          } else {
+            $('.search-icon').click(inputEventFunction);
+            input.addEventListener('keypress', function (event) {
+              if (event.keyCode === 13) {
+                inputEventFunction();
+              }
+            });
+          }
+
+          // remove loading animation
+          $(".local-search-pop-overlay").remove();
+          $('body').css('overflow', '');
+
+          proceedsearch();
+        }
+      });
+    }
+
+    // handle and trigger popup window;
+    $('.popup-trigger').click(function(e) {
+      e.stopPropagation();
+      if (isfetched === false) {
+        searchFunc(path, 'local-search-input', 'local-search-result');
+      } else {
+        proceedsearch();
+      };
+    });
+
+    $('.popup-btn-close').click(onPopupClose);
+    $('.popup').click(function(e){
+      e.stopPropagation();
+    });
+    $(document).on('keyup', function (event) {
+      var shouldDismissSearchPopup = event.which === 27 &&
+        $('.search-popup').is(':visible');
+      if (shouldDismissSearchPopup) {
+        onPopupClose();
+      }
+    });
+  </script>
+
+
+
+
+
+  
+
+  
+  <script src="https://cdn1.lncld.net/static/js/av-core-mini-0.6.1.js"></script>
+  <script>AV.initialize("Jrde1fjYIi1vvv2280DCd6C2-gzGzoHsz", "VXnQp5diaS1YaLt2pjmWxc8W");</script>
+  <script>
+    function showTime(Counter) {
+      var query = new AV.Query(Counter);
+      var entries = [];
+      var $visitors = $(".leancloud_visitors");
+
+      $visitors.each(function () {
+        entries.push( $(this).attr("id").trim() );
+      });
+
+      query.containedIn('url', entries);
+      query.find()
+        .done(function (results) {
+          var COUNT_CONTAINER_REF = '.leancloud-visitors-count';
+
+          if (results.length === 0) {
+            $visitors.find(COUNT_CONTAINER_REF).text(0);
+            return;
+          }
+
+          for (var i = 0; i < results.length; i++) {
+            var item = results[i];
+            var url = item.get('url');
+            var time = item.get('time');
+            var element = document.getElementById(url);
+
+            $(element).find(COUNT_CONTAINER_REF).text(time);
+          }
+          for(var i = 0; i < entries.length; i++) {
+            var url = entries[i];
+            var element = document.getElementById(url);
+            var countSpan = $(element).find(COUNT_CONTAINER_REF);
+            if( countSpan.text() == '') {
+              countSpan.text(0);
+            }
+          }
+        })
+        .fail(function (object, error) {
+          console.log("Error: " + error.code + " " + error.message);
+        });
+    }
+
+    function addCount(Counter) {
+      var $visitors = $(".leancloud_visitors");
+      var url = $visitors.attr('id').trim();
+      var title = $visitors.attr('data-flag-title').trim();
+      var query = new AV.Query(Counter);
+
+      query.equalTo("url", url);
+      query.find({
+        success: function(results) {
+          if (results.length > 0) {
+            var counter = results[0];
+            counter.fetchWhenSave(true);
+            counter.increment("time");
+            counter.save(null, {
+              success: function(counter) {
+                var $element = $(document.getElementById(url));
+                $element.find('.leancloud-visitors-count').text(counter.get('time'));
+              },
+              error: function(counter, error) {
+                console.log('Failed to save Visitor num, with error message: ' + error.message);
+              }
+            });
+          } else {
+            var newcounter = new Counter();
+            /* Set ACL */
+            var acl = new AV.ACL();
+            acl.setPublicReadAccess(true);
+            acl.setPublicWriteAccess(true);
+            newcounter.setACL(acl);
+            /* End Set ACL */
+            newcounter.set("title", title);
+            newcounter.set("url", url);
+            newcounter.set("time", 1);
+            newcounter.save(null, {
+              success: function(newcounter) {
+                var $element = $(document.getElementById(url));
+                $element.find('.leancloud-visitors-count').text(newcounter.get('time'));
+              },
+              error: function(newcounter, error) {
+                console.log('Failed to create');
+              }
+            });
+          }
+        },
+        error: function(error) {
+          console.log('Error:' + error.code + " " + error.message);
+        }
+      });
+    }
+
+    $(function() {
+      var Counter = AV.Object.extend("Counter");
+      if ($('.leancloud_visitors').length == 1) {
+        addCount(Counter);
+      } else if ($('.post-title-link').length > 1) {
+        showTime(Counter);
+      }
+    });
+  </script>
+
+
+
+  
+<script>
+(function(){
+    var bp = document.createElement('script');
+    var curProtocol = window.location.protocol.split(':')[0];
+    if (curProtocol === 'https') {
+        bp.src = 'https://zz.bdstatic.com/linksubmit/push.js';
+    }
+    else {
+        bp.src = 'http://push.zhanzhang.baidu.com/push.js';
+    }
+    var s = document.getElementsByTagName("script")[0];
+    s.parentNode.insertBefore(bp, s);
+})();
+</script>
+
+
+  
+  
+
+
+  
+  
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({
+        tex2jax: {
+          inlineMath: [ ['$','$'], ["\\(","\\)"]  ],
+          processEscapes: true,
+          skipTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code']
+        }
+      });
+    </script>
+
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Queue(function() {
+        var all = MathJax.Hub.getAllJax(), i;
+        for (i=0; i < all.length; i += 1) {
+          all[i].SourceElement().parentNode.className += ' has-jax';
+        }
+      });
+    </script>
+    <script type="text/javascript" src="//cdn.bootcss.com/mathjax/2.7.1/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
+  
+
+
+  
+
+  
+
+</body>
+</html>
+
