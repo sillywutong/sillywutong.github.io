@@ -85,7 +85,7 @@
 <link href="/assets/css/main.css?v=5.1.1" rel="stylesheet" type="text/css" />
 
 
-  <meta name="keywords" content="mechine learning, CS, web, sillywutong, Shutong Chen" />
+  <meta name="keywords" content="notes," />
 
 
 
@@ -113,17 +113,25 @@
 
 
 
-<meta name="description" content="Building...">
-<meta name="keywords" content="mechine learning, CS, web, sillywutong, Shutong Chen">
-<meta property="og:type" content="website">
-<meta property="og:title" content="Shutong Chen's Blog">
-<meta property="og:url" content="http://localhost:4000/about/">
+<meta name="description" content="内容提要： 图卷积原理和基础版 graphSAGE graph attention network 回到node embedding问题，之前的DeepWalk以及node2vec等等，用的都是“shallow embedding”，他们的encoder函数都是相当于一个lookup table。 这样的做法有什么局限性？ 要学习的参数非常多， 整个表都是要学习的，n个节点，d维表示，那就是nd个参数，而n往往是非常大的。 inherently transductive： 它不能产生那些不在training过程中的节点的embedding，就是如果有一个新的网络/新的节点，同样的参数不能在新网络上使用，必须重新训练。 没有考虑节点本身的特征，只是考虑了网络结构。">
+<meta name="keywords" content="notes">
+<meta property="og:type" content="article">
+<meta property="og:title" content="[cs224w笔记]8.Graph Neural Network">
+<meta property="og:url" content="http://localhost:4000/social%20network/graph-based%20machine%20learning/2020/03/29/cs224w8/">
 <meta property="og:site_name" content="Shutong Chen's Blog">
-<meta property="og:description" content="Building...">
+<meta property="og:description" content="内容提要： 图卷积原理和基础版 graphSAGE graph attention network 回到node embedding问题，之前的DeepWalk以及node2vec等等，用的都是“shallow embedding”，他们的encoder函数都是相当于一个lookup table。 这样的做法有什么局限性？ 要学习的参数非常多， 整个表都是要学习的，n个节点，d维表示，那就是nd个参数，而n往往是非常大的。 inherently transductive： 它不能产生那些不在training过程中的节点的embedding，就是如果有一个新的网络/新的节点，同样的参数不能在新网络上使用，必须重新训练。 没有考虑节点本身的特征，只是考虑了网络结构。">
 <meta property="og:locale" content="en">
+<meta property="og:image" content="/assets/images/notes/gnn1.png">
+<meta property="og:image" content="/assets/images/notes/gnn2.png">
+<meta property="og:image" content="/assets/images/notes/gnn3.png">
+<meta property="og:image" content="/assets/images/notes/gnn4.png">
+<meta property="og:image" content="/assets/images/notes/gnn5.png">
+<meta property="og:image" content="/assets/images/notes/gnn6.png">
+<meta property="og:image" content="/assets/images/notes/gnn7.png">
 <meta name="twitter:card" content="summary">
-<meta name="twitter:title" content="Shutong Chen's Blog">
-<meta name="twitter:description" content="Building...">
+<meta name="twitter:title" content="[cs224w笔记]8.Graph Neural Network">
+<meta name="twitter:description" content="内容提要： 图卷积原理和基础版 graphSAGE graph attention network 回到node embedding问题，之前的DeepWalk以及node2vec等等，用的都是“shallow embedding”，他们的encoder函数都是相当于一个lookup table。 这样的做法有什么局限性？ 要学习的参数非常多， 整个表都是要学习的，n个节点，d维表示，那就是nd个参数，而n往往是非常大的。 inherently transductive： 它不能产生那些不在training过程中的节点的embedding，就是如果有一个新的网络/新的节点，同样的参数不能在新网络上使用，必须重新训练。 没有考虑节点本身的特征，只是考虑了网络结构。">
+<meta name="twitter:image" content="/assets/images/notes/gnn1.png">
 
 
 <script type="text/javascript" id="hexo.configurations">
@@ -156,7 +164,7 @@
 
 
 
-  <title>              About | Shutong Chen's Blog      </title>
+  <title>[cs224w笔记]8.Graph Neural Network | Shutong Chen's Blog</title>
   
 
 
@@ -337,24 +345,377 @@
         <div class="content-wrap">
           <div id="content" class="content">
             
+
 <div id="posts" class="posts-expand">
-<header class="post-header">
+  
+  
 
-	<h2 class="post-title" itemprop="name headline">
+  
+
+  
+  
+  
+
+  <article class="post post-type- " itemscope itemtype="http://schema.org/Article">
+    <link itemprop="mainEntityOfPage" href="http://localhost:4000/social%20network/graph-based%20machine%20learning/2020/03/29/cs224w8/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="Shutong Chen">
+      <meta itemprop="description" content="">
+      <meta itemprop="image" content="/assets/images/avatar.jpg">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Shutong Chen's Blog">
+    </span>
+
     
-      About
+      <header class="post-header">
+
+        
+        
+          <h2 class="post-title" itemprop="name headline">
+          
+          
+            [cs224w笔记]8.Graph Neural Network
+          
+        </h2>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">Posted on</span>
+              
+              <time title="Post created" itemprop="dateCreated datePublished" datetime="2020-03-29T00:00:00+08:00">
+                2020-03-29
+              </time>
+            
+
+            
+              <span class="post-meta-divider">|</span>
+            
+
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-check-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">Post modified</span>
+              
+              <time title="Post modified" itemprop="dateModified" datetime="">
+                
+              </time>
+            
+          </span>
+
+          
+            <span class="post-category" >
+            
+              <span class="post-meta-divider">|</span>
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">In</span>
+              
+              
+                
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/category/#/social%20network" itemprop="url" rel="index">
+                    <span itemprop="name">social network</span>
+                  </a>
+                </span>
+
+                
+                
+                  , 
+                
+              
+                
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/category/#/graph-based%20machine%20learning" itemprop="url" rel="index">
+                    <span itemprop="name">graph-based machine learning</span>
+                  </a>
+                </span>
+
+                
+                
+              
+            </span>
+          
+
+          
+            
+              <span class="post-comments-count">
+                <span class="post-meta-divider">|</span>
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-comment-o"></i>
+                </span>
+                <a href="/social%20network/graph-based%20machine%20learning/2020/03/29/cs224w8/#comments" itemprop="discussionUrl">
+                  <span class="post-comments-count wf-count-unit" wf-page-url="http://localhost:4000/social%20network/graph-based%20machine%20learning/2020/03/29/cs224w8/" itemprop="commentCount"></span>
+                </a>
+              </span>
+            
+          
+
+          
+          
+             <span id="/social%20network/graph-based%20machine%20learning/2020/03/29/cs224w8/" class="leancloud_visitors" data-flag-title="[cs224w笔记]8.Graph Neural Network">
+               <span class="post-meta-divider">|</span>
+               <span class="post-meta-item-icon">
+                 <i class="fa fa-eye"></i>
+               </span>
+               
+                 <span class="post-meta-item-text">Visitors </span>
+               
+                 <span class="leancloud-visitors-count"></span>
+             </span>
+          
+
+          
+
+          
+
+          
+            
+                <div class="post-description">
+                    
+                </div>
+            
+          
+
+        </div>
+      </header>
     
-  </h2>
 
+    <div class="post-body" itemprop="articleBody">
 
+      
+      
 
-</header>
-
+      
+        
   
   
-    <p>Building…</p>
 
-  
+
+
+
+
+
+
+
+
+
+
+
+  <p>内容提要：</p>
+<ol>
+  <li>图卷积原理和基础版</li>
+  <li>graphSAGE</li>
+  <li>graph attention network</li>
+</ol>
+
+<p>回到node embedding问题，之前的DeepWalk以及node2vec等等，用的都是“shallow embedding”，他们的encoder函数都是相当于一个lookup table。</p>
+
+<p>这样的做法有什么局限性？</p>
+
+<ol>
+  <li>要学习的参数非常多， 整个表都是要学习的，n个节点，d维表示，那就是nd个参数，而n往往是非常大的。</li>
+  <li>inherently transductive： 它不能产生那些不在training过程中的节点的embedding，就是如果有一个新的网络/新的节点，同样的参数不能在新网络上使用，必须重新训练。</li>
+  <li>没有考虑节点本身的特征，只是考虑了网络结构。</li>
+</ol>
+
+<!--more-->
+<h1 id="graph-convolutional-networks">Graph Convolutional Networks</h1>
+
+<p>在网络上的“卷积”，可以看成是中心节点从它的邻居聚集 信息</p>
+
+<p><img src="/assets/images/notes/gnn1.png" alt="https://s3-us-west-2.amazonaws.com/secure.notion-static.com/7a523bce-ee5a-48ab-85b9-fc5f2aaf2d54/Untitled.png" /></p>
+
+<p>一个直接的想法： 用adjacency matrix直接作为dnn的输入</p>
+
+<p>这个方法不行：</p>
+
+<ol>
+  <li>首先parameter会非常非常多， 只第一层输入层的参数就有n* feature dimension 那么多， 这个参数会远远多于训练数据</li>
+  <li>对于大小不同的图无法使用，因为输入必须是固定的大小，但网络的结构是经常变化的</li>
+  <li>not invariant to node ordering, 网络节点标号不同的顺序，得到的结果应该是一样的。</li>
+</ol>
+
+<h1 id="deep-learning-for-graphs">Deep learning for graphs</h1>
+
+<p>G， V， A， X是node feature matrix</p>
+
+<p><img src="/assets/images/notes/gnn2.png" alt="https://s3-us-west-2.amazonaws.com/secure.notion-static.com/f3e287a5-2ceb-400c-8589-30dba3546f1f/Untitled.png" /></p>
+
+<p>这个aggregate function，就是图中的方块，应该是节点顺序不变性的， 比如说求最大值、求平均值等等， 经验表明，summation的效果比较好。</p>
+
+<p>上图右边就是一个 <strong>两层的neural network，</strong> 一般来说， 在图上的dnn层数不会很深，因为社交网络的直径在6左右！所以一般3、4层就可以了。</p>
+
+<p>layer -0 的输入就是节点的特征向量x，然后每个节点会聚集邻居的特征向量x，直到最顶层， 最终得到节点的embedding</p>
+
+<p><img src="/assets/images/notes/gnn3.png" alt="https://s3-us-west-2.amazonaws.com/secure.notion-static.com/c21e19cb-1b09-4dbc-9fd3-c9fac35dbf61/Untitled.png" /></p>
+
+<p>要学习的参数是Wk和Bk （两个都是矩阵，和特征的维数应该是一样的。</p>
+
+<p>如何训练？</p>
+
+<p>可以是unsupervised training， 用random walks、graph factorizing来表示节点的similarity， 然后相似的节点应该有相近的embedding。</p>
+
+<p>也可以直接对具体的任务做supervised training、semi-supervised training。</p>
+
+<p>例如：</p>
+
+<ol>
+  <li>node classification</li>
+</ol>
+
+<p><img src="/assets/images/notes/gnn4.png" alt="https://s3-us-west-2.amazonaws.com/secure.notion-static.com/a89540a2-6ddb-4bc9-8f20-e2b970dda0f8/Untitled.png" /></p>
+
+<p>因为W和B只是不同的层是不一样的， 而对每一个节点是一样的， 所以如果网络加进来了新的节点， 可以在原来那一部分训练好模型之后， 直接apply到新的节点上。</p>
+
+<h1 id="graphsage">GraphSAGE</h1>
+
+<p>和上面相比， GraphSAGE的两个不同，一个在于可以用不同的Aggregation函数，另一个在于不是直接把邻居和本节点融合(+)，而是向量拼接。</p>
+
+<p><img src="/assets/images/notes/gnn5.png" alt="https://s3-us-west-2.amazonaws.com/secure.notion-static.com/1c64917f-6c6d-4a9c-89d0-fdbc98d8dc2d/Untitled.png" /></p>
+
+<p>对不同的问题，可以采用不同的聚集函数：</p>
+
+<ul>
+  <li>mean</li>
+  <li>pool，可以取最小或者最大值</li>
+  <li>LSTM： 因为embedding是需要顺序不变性的，但LSTM输入是顺序的， 所以可以用随机顺序输入训练。</li>
+</ul>
+
+<p>其中， mean aggregation可以用矩阵相乘的方式非常快地实现：</p>
+
+<p><img src="/assets/images/notes/gnn6.png" alt="https://s3-us-west-2.amazonaws.com/secure.notion-static.com/188aa5fc-cf5b-48cc-b8a2-bc04b0f92064/Untitled.png" /></p>
+
+<table>
+  <tbody>
+    <tr>
+      <td>D是度数矩阵， 相当于除以</td>
+      <td>N(v)</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>如果是有权重的图， 一种方式是在mean aggregation中， 用加权平均。</p>
+
+<p>embedding和GNN方面最新的论文：</p>
+
+<p><img src="/assets/images/notes/gnn7.png" alt="https://s3-us-west-2.amazonaws.com/secure.notion-static.com/5ab32079-32eb-4e02-a5d0-5bc2b423bafc/Untitled.png" /></p>
+
+<h1 id="graph-attention-network">Graph attention network</h1>
+
+<table>
+  <tbody>
+    <tr>
+      <td>上面的方法中，每一个邻居对某个节点的“贡献”是一样的，可以看成它们都有相同的权重 α=1/</td>
+      <td>N(v)</td>
+      <td>.</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>attention strategy 1：</p>
+
+<p>用某种方式，来计算出节点v的邻居u的attention coefficient：</p>
+
+<script type="math/tex; mode=display">e_{vu} = a(W_kh_u^{k-1}, W_kh_v^{k-1})</script>
+
+<p>计算出所有邻居的attention coefficient后， 节点的权重 α可以用softmax归一：</p>
+
+<script type="math/tex; mode=display">\alpha_{vu} = \frac{\exp(e_{vu})}{\sum_{k\in N(v)}\exp(e_{vk})}</script>
+
+<p>这样，每一层在计算embedding的时候，聚集函数，例如mean，就是每一个邻居上一层embedding的加权平均，权重=α.</p>
+
+<script type="math/tex; mode=display">h_{v}^k = \sigma(\sum_{u\in N(v)}\alpha_{vu}W_kh^{k-1}_u)</script>
+
+<p>如何选择函数 a？</p>
+
+<ol>
+  <li>有看到一些具体的任务，a就是直接两个向量进行点积（类似于余弦相似度，和原节点越相似，那么这个邻居节点就越重要），这个应该可以根据任务的不同，自己定义一些重要性的函数，例如相似度、距离等等。</li>
+  <li>a可以是一个参数可以通过训练调节的简单神经网络。</li>
+  <li>如果图本来就有权重，可以直接将边权作为attention coefficient，也可以在a中加入这个因素。</li>
+</ol>
+
+
+      
+    </div>
+
+    <div>
+      
+        
+
+      
+    </div>
+
+    <div>
+      
+        
+
+      
+    </div>
+
+    <div>
+      
+        
+
+      
+    </div>
+
+    <footer class="post-footer">
+      
+        <div class="post-tags">
+          
+            
+            <a href="/tag/#/notes" rel="tag"># notes</a>
+          
+        </div>
+      
+
+      
+      
+      
+      
+      
+
+      
+      
+        <div class="post-nav" id="post-nav-id">
+          <div class="post-nav-next post-nav-item">
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+              <a href="/social%20network/graph-based%20machine%20learning/2020/03/14/cs224w4/" rel="prev" title="[cs224w笔记]4.网络聚类之谱分析方法">
+                [cs224w笔记]4.网络聚类之谱分析方法 <i class="fa fa-chevron-right"></i>
+              </a>
+            
+          </div>
+        </div>
+      
+      
+
+      
+    </footer>
+  </article>
+
+  <div class="post-spread">
+    
+  </div>
 </div>
 
 
@@ -363,6 +724,12 @@
 
 
           
+  <div class="comments" id="comments">
+    
+      <div class="wildfire_thread"></div>
+    
+  </div>
+
 
         </div>
         
@@ -380,10 +747,30 @@
     <div class="sidebar-inner">
 
       
+        
+        
+        
+
+
+
+
+
+
 
       
 
-      <section class="site-overview sidebar-panel sidebar-panel-active">
+      
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap" >
+            Table of Contents
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview">
+            Overview
+          </li>
+        </ul>
+      
+
+      <section class="site-overview sidebar-panel">
         <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
           <img class="site-author-image" itemprop="image"
                src="/assets/images/avatar.jpg"
@@ -478,6 +865,34 @@
 
       </section>
 
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+            
+            
+            
+
+
+
+
+
+
+
+
+            
+              <div class="post-toc-content">
+    <ol class=nav>
+      <li class="nav-item nav-level-1"> <a class="nav-link" href="#graph-convolutional-networks"> <span class="nav-number">1</span> <span class="nav-text">Graph Convolutional Networks</span> </a> </li> <li class="nav-item nav-level-1"> <a class="nav-link" href="#deep-learning-for-graphs"> <span class="nav-number">2</span> <span class="nav-text">Deep learning for graphs</span> </a> </li> <li class="nav-item nav-level-1"> <a class="nav-link" href="#graphsage"> <span class="nav-number">3</span> <span class="nav-text">GraphSAGE</span> </a> </li> <li class="nav-item nav-level-1"> <a class="nav-link" href="#graph-attention-network"> <span class="nav-number">4</span> <span class="nav-text">Graph attention network</span> </a> </li>
+    </ol>
+  </div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
       
 
       
@@ -686,8 +1101,8 @@
         messagingSenderId: '812229193086'
         
       },
-      pageURL: 'http://localhost:4000/about/',
-      pageTitle: '',
+      pageURL: 'http://localhost:4000/social%20network/graph-based%20machine%20learning/2020/03/29/cs224w8/',
+      pageTitle: '[cs224w笔记]8.Graph Neural Network',
       
       theme: 'light',
       
@@ -697,6 +1112,10 @@
       
     });
   </script>
+  
+    
+    <script src="https://unpkg.com/wildfire-comment@1.2.5"></script>
+    
   
   <script src="https://unpkg.com/wf-count"></script>
 

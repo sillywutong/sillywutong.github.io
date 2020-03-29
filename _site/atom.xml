@@ -1,8 +1,143 @@
-<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="3.8.5">Jekyll</generator><link href="http://localhost:4000/atom.xml" rel="self" type="application/atom+xml" /><link href="http://localhost:4000/" rel="alternate" type="text/html" /><updated>2020-03-14T16:09:25+08:00</updated><id>http://localhost:4000/atom.xml</id><title type="html">Shutong Chen’s Blog</title><subtitle>CS student in junior year, Fudan University</subtitle><author><name>Shutong Chen</name></author><entry><title type="html">[cs224w笔记]4.网络聚类之谱分析方法</title><link href="http://localhost:4000/social%20network/graph-based%20machine%20learning/2020/03/14/cs224w4/" rel="alternate" type="text/html" title="[cs224w笔记]4.网络聚类之谱分析方法" /><published>2020-03-14T00:00:00+08:00</published><updated>2020-03-14T00:00:00+08:00</updated><id>http://localhost:4000/social%20network/graph-based%20machine%20learning/2020/03/14/cs224w4</id><content type="html" xml:base="http://localhost:4000/social%20network/graph-based%20machine%20learning/2020/03/14/cs224w4/">&lt;p&gt;这是斯坦福cs224w的课程笔记，根据老师讲课内容、ppt和助教的笔记和自己的理解整理的。 cs224w的资源在b站和youtube都有，不过没有字幕，jure老师的口音挺可爱的，听一俩节课也习惯了，不过有时候还是配合助教的笔记看清楚一些。&lt;/p&gt;
+<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="3.8.5">Jekyll</generator><link href="http://localhost:4000/atom.xml" rel="self" type="application/atom+xml" /><link href="http://localhost:4000/" rel="alternate" type="text/html" /><updated>2020-03-29T18:46:38+08:00</updated><id>http://localhost:4000/atom.xml</id><title type="html">Shutong Chen’s Blog</title><subtitle>CS student in junior year, Fudan University</subtitle><author><name>Shutong Chen</name></author><entry><title type="html">[cs224w笔记]8.Graph Neural Network</title><link href="http://localhost:4000/social%20network/graph-based%20machine%20learning/2020/03/29/cs224w8/" rel="alternate" type="text/html" title="[cs224w笔记]8.Graph Neural Network" /><published>2020-03-29T00:00:00+08:00</published><updated>2020-03-29T00:00:00+08:00</updated><id>http://localhost:4000/social%20network/graph-based%20machine%20learning/2020/03/29/cs224w8</id><content type="html" xml:base="http://localhost:4000/social%20network/graph-based%20machine%20learning/2020/03/29/cs224w8/">&lt;p&gt;内容提要：&lt;/p&gt;
+&lt;ol&gt;
+  &lt;li&gt;图卷积原理和基础版&lt;/li&gt;
+  &lt;li&gt;graphSAGE&lt;/li&gt;
+  &lt;li&gt;graph attention network&lt;/li&gt;
+&lt;/ol&gt;
 
-&lt;p&gt;助教的笔记： https://snap-stanford.github.io/cs224w-notes/network-methods/spectral-clustering&lt;/p&gt;
+&lt;p&gt;回到node embedding问题，之前的DeepWalk以及node2vec等等，用的都是“shallow embedding”，他们的encoder函数都是相当于一个lookup table。&lt;/p&gt;
 
-&lt;p&gt;课程网站（有ppt和作业）：http://web.stanford.edu/class/cs224w/&lt;/p&gt;
+&lt;p&gt;这样的做法有什么局限性？&lt;/p&gt;
+
+&lt;ol&gt;
+  &lt;li&gt;要学习的参数非常多， 整个表都是要学习的，n个节点，d维表示，那就是nd个参数，而n往往是非常大的。&lt;/li&gt;
+  &lt;li&gt;inherently transductive： 它不能产生那些不在training过程中的节点的embedding，就是如果有一个新的网络/新的节点，同样的参数不能在新网络上使用，必须重新训练。&lt;/li&gt;
+  &lt;li&gt;没有考虑节点本身的特征，只是考虑了网络结构。&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;!--more--&gt;
+&lt;h1 id=&quot;graph-convolutional-networks&quot;&gt;Graph Convolutional Networks&lt;/h1&gt;
+
+&lt;p&gt;在网络上的“卷积”，可以看成是中心节点从它的邻居聚集 信息&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/images/notes/gnn1.png&quot; alt=&quot;https://s3-us-west-2.amazonaws.com/secure.notion-static.com/7a523bce-ee5a-48ab-85b9-fc5f2aaf2d54/Untitled.png&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;一个直接的想法： 用adjacency matrix直接作为dnn的输入&lt;/p&gt;
+
+&lt;p&gt;这个方法不行：&lt;/p&gt;
+
+&lt;ol&gt;
+  &lt;li&gt;首先parameter会非常非常多， 只第一层输入层的参数就有n* feature dimension 那么多， 这个参数会远远多于训练数据&lt;/li&gt;
+  &lt;li&gt;对于大小不同的图无法使用，因为输入必须是固定的大小，但网络的结构是经常变化的&lt;/li&gt;
+  &lt;li&gt;not invariant to node ordering, 网络节点标号不同的顺序，得到的结果应该是一样的。&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;h1 id=&quot;deep-learning-for-graphs&quot;&gt;Deep learning for graphs&lt;/h1&gt;
+
+&lt;p&gt;G， V， A， X是node feature matrix&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/images/notes/gnn2.png&quot; alt=&quot;https://s3-us-west-2.amazonaws.com/secure.notion-static.com/f3e287a5-2ceb-400c-8589-30dba3546f1f/Untitled.png&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;这个aggregate function，就是图中的方块，应该是节点顺序不变性的， 比如说求最大值、求平均值等等， 经验表明，summation的效果比较好。&lt;/p&gt;
+
+&lt;p&gt;上图右边就是一个 &lt;strong&gt;两层的neural network，&lt;/strong&gt; 一般来说， 在图上的dnn层数不会很深，因为社交网络的直径在6左右！所以一般3、4层就可以了。&lt;/p&gt;
+
+&lt;p&gt;layer -0 的输入就是节点的特征向量x，然后每个节点会聚集邻居的特征向量x，直到最顶层， 最终得到节点的embedding&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/images/notes/gnn3.png&quot; alt=&quot;https://s3-us-west-2.amazonaws.com/secure.notion-static.com/c21e19cb-1b09-4dbc-9fd3-c9fac35dbf61/Untitled.png&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;要学习的参数是Wk和Bk （两个都是矩阵，和特征的维数应该是一样的。&lt;/p&gt;
+
+&lt;p&gt;如何训练？&lt;/p&gt;
+
+&lt;p&gt;可以是unsupervised training， 用random walks、graph factorizing来表示节点的similarity， 然后相似的节点应该有相近的embedding。&lt;/p&gt;
+
+&lt;p&gt;也可以直接对具体的任务做supervised training、semi-supervised training。&lt;/p&gt;
+
+&lt;p&gt;例如：&lt;/p&gt;
+
+&lt;ol&gt;
+  &lt;li&gt;node classification&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/images/notes/gnn4.png&quot; alt=&quot;https://s3-us-west-2.amazonaws.com/secure.notion-static.com/a89540a2-6ddb-4bc9-8f20-e2b970dda0f8/Untitled.png&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;因为W和B只是不同的层是不一样的， 而对每一个节点是一样的， 所以如果网络加进来了新的节点， 可以在原来那一部分训练好模型之后， 直接apply到新的节点上。&lt;/p&gt;
+
+&lt;h1 id=&quot;graphsage&quot;&gt;GraphSAGE&lt;/h1&gt;
+
+&lt;p&gt;和上面相比， GraphSAGE的两个不同，一个在于可以用不同的Aggregation函数，另一个在于不是直接把邻居和本节点融合(+)，而是向量拼接。&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/images/notes/gnn5.png&quot; alt=&quot;https://s3-us-west-2.amazonaws.com/secure.notion-static.com/1c64917f-6c6d-4a9c-89d0-fdbc98d8dc2d/Untitled.png&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;对不同的问题，可以采用不同的聚集函数：&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;mean&lt;/li&gt;
+  &lt;li&gt;pool，可以取最小或者最大值&lt;/li&gt;
+  &lt;li&gt;LSTM： 因为embedding是需要顺序不变性的，但LSTM输入是顺序的， 所以可以用随机顺序输入训练。&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;其中， mean aggregation可以用矩阵相乘的方式非常快地实现：&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/images/notes/gnn6.png&quot; alt=&quot;https://s3-us-west-2.amazonaws.com/secure.notion-static.com/188aa5fc-cf5b-48cc-b8a2-bc04b0f92064/Untitled.png&quot; /&gt;&lt;/p&gt;
+
+&lt;table&gt;
+  &lt;tbody&gt;
+    &lt;tr&gt;
+      &lt;td&gt;D是度数矩阵， 相当于除以&lt;/td&gt;
+      &lt;td&gt;N(v)&lt;/td&gt;
+    &lt;/tr&gt;
+  &lt;/tbody&gt;
+&lt;/table&gt;
+
+&lt;p&gt;如果是有权重的图， 一种方式是在mean aggregation中， 用加权平均。&lt;/p&gt;
+
+&lt;p&gt;embedding和GNN方面最新的论文：&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/images/notes/gnn7.png&quot; alt=&quot;https://s3-us-west-2.amazonaws.com/secure.notion-static.com/5ab32079-32eb-4e02-a5d0-5bc2b423bafc/Untitled.png&quot; /&gt;&lt;/p&gt;
+
+&lt;h1 id=&quot;graph-attention-network&quot;&gt;Graph attention network&lt;/h1&gt;
+
+&lt;table&gt;
+  &lt;tbody&gt;
+    &lt;tr&gt;
+      &lt;td&gt;上面的方法中，每一个邻居对某个节点的“贡献”是一样的，可以看成它们都有相同的权重 α=1/&lt;/td&gt;
+      &lt;td&gt;N(v)&lt;/td&gt;
+      &lt;td&gt;.&lt;/td&gt;
+    &lt;/tr&gt;
+  &lt;/tbody&gt;
+&lt;/table&gt;
+
+&lt;p&gt;attention strategy 1：&lt;/p&gt;
+
+&lt;p&gt;用某种方式，来计算出节点v的邻居u的attention coefficient：&lt;/p&gt;
+
+&lt;script type=&quot;math/tex; mode=display&quot;&gt;e_{vu} = a(W_kh_u^{k-1}, W_kh_v^{k-1})&lt;/script&gt;
+
+&lt;p&gt;计算出所有邻居的attention coefficient后， 节点的权重 α可以用softmax归一：&lt;/p&gt;
+
+&lt;script type=&quot;math/tex; mode=display&quot;&gt;\alpha_{vu} = \frac{\exp(e_{vu})}{\sum_{k\in N(v)}\exp(e_{vk})}&lt;/script&gt;
+
+&lt;p&gt;这样，每一层在计算embedding的时候，聚集函数，例如mean，就是每一个邻居上一层embedding的加权平均，权重=α.&lt;/p&gt;
+
+&lt;script type=&quot;math/tex; mode=display&quot;&gt;h_{v}^k = \sigma(\sum_{u\in N(v)}\alpha_{vu}W_kh^{k-1}_u)&lt;/script&gt;
+
+&lt;p&gt;如何选择函数 a？&lt;/p&gt;
+
+&lt;ol&gt;
+  &lt;li&gt;有看到一些具体的任务，a就是直接两个向量进行点积（类似于余弦相似度，和原节点越相似，那么这个邻居节点就越重要），这个应该可以根据任务的不同，自己定义一些重要性的函数，例如相似度、距离等等。&lt;/li&gt;
+  &lt;li&gt;a可以是一个参数可以通过训练调节的简单神经网络。&lt;/li&gt;
+  &lt;li&gt;如果图本来就有权重，可以直接将边权作为attention coefficient，也可以在a中加入这个因素。&lt;/li&gt;
+&lt;/ol&gt;</content><author><name>Shutong Chen</name></author><category term="[&quot;social network&quot;, &quot;graph-based machine learning&quot;]" /><category term="notes" /><summary type="html">内容提要： 图卷积原理和基础版 graphSAGE graph attention network 回到node embedding问题，之前的DeepWalk以及node2vec等等，用的都是“shallow embedding”，他们的encoder函数都是相当于一个lookup table。 这样的做法有什么局限性？ 要学习的参数非常多， 整个表都是要学习的，n个节点，d维表示，那就是nd个参数，而n往往是非常大的。 inherently transductive： 它不能产生那些不在training过程中的节点的embedding，就是如果有一个新的网络/新的节点，同样的参数不能在新网络上使用，必须重新训练。 没有考虑节点本身的特征，只是考虑了网络结构。</summary></entry><entry><title type="html">[cs224w笔记]4.网络聚类之谱分析方法</title><link href="http://localhost:4000/social%20network/graph-based%20machine%20learning/2020/03/14/cs224w4/" rel="alternate" type="text/html" title="[cs224w笔记]4.网络聚类之谱分析方法" /><published>2020-03-14T00:00:00+08:00</published><updated>2020-03-14T00:00:00+08:00</updated><id>http://localhost:4000/social%20network/graph-based%20machine%20learning/2020/03/14/cs224w4</id><content type="html" xml:base="http://localhost:4000/social%20network/graph-based%20machine%20learning/2020/03/14/cs224w4/">&lt;p&gt;这是斯坦福cs224w的课程笔记，根据老师讲课内容、ppt和助教的笔记和自己的理解整理的。 cs224w的资源在b站和youtube都有，不过没有字幕，jure老师的口音挺可爱的，听一俩节课也习惯了，不过有时候还是配合助教的笔记看清楚一些。&lt;/p&gt;
+
+&lt;p&gt;助教的笔记： &lt;a href=&quot;https://snap-stanford.github.io/cs224w-notes/network-methods/spectral-clustering&quot;&gt;https://snap-stanford.github.io/cs224w-notes/network-methods/spectral-clustering&lt;/a&gt;&lt;/p&gt;
+
+&lt;p&gt;课程网站（有ppt和作业）：&lt;a href=&quot;http://web.stanford.edu/class/cs224w/&quot;&gt;http://web.stanford.edu/class/cs224w/&lt;/a&gt;&lt;/p&gt;
+
+&lt;p&gt;另外， 之前没有发现原来文章的排版那么难看！稍微改了一下行距，可能会好一些orz 如果有空我会把英文部分尽量都翻译过来的&lt;/p&gt;
+
+&lt;!--more--&gt;
 
 &lt;hr /&gt;
 &lt;h1 id=&quot;spectral-clustering&quot;&gt;Spectral Clustering&lt;/h1&gt;
@@ -236,7 +371,7 @@
 
 &lt;script type=&quot;math/tex; mode=display&quot;&gt;\phi_M^*&lt;/script&gt;
 
-&lt;p&gt;is the optimal conductance.&lt;/p&gt;</content><author><name>Shutong Chen</name></author><category term="[&quot;social network&quot;, &quot;graph-based machine learning&quot;]" /><category term="notes" /><summary type="html">这是斯坦福cs224w的课程笔记，根据老师讲课内容、ppt和助教的笔记和自己的理解整理的。 cs224w的资源在b站和youtube都有，不过没有字幕，jure老师的口音挺可爱的，听一俩节课也习惯了，不过有时候还是配合助教的笔记看清楚一些。 助教的笔记： https://snap-stanford.github.io/cs224w-notes/network-methods/spectral-clustering 课程网站（有ppt和作业）：http://web.stanford.edu/class/cs224w/ Spectral Clustering Here we study the important class of spectral methods for understanding networks on a global level. By “spectral” we mean the spectrum, or eigenvalues, of matrices derived from graphs, which will give us insight into the structure of the graphs themselves. In particular, we will explore spectral clustering algorithms, which take advantage of these tools for clustering nodes in graphs. The spectral clustering algorithms we will explore generally consist of three basic stages. Preprocessing: construct a matrix representation of a graph, such as the adjacency matrix (but we will explore other options) Decomposition: compute the eigenvectors and eigenvalues of the matrix, and use these to create a low-dimensional representation space Grouping: assign points to clusters based on their representation in this space *英文内容来自助教的笔记 这一节讲的是用谱分析的方法来做网络聚类。 谱分析就是研究网络邻接矩阵的特征值和特征向量， 从而获得网络结构的一些信息。 这种方法大致分为3个步骤： 预处理： 构建表示图结构的矩阵，例如邻接矩阵以及laplacian矩阵。 分解： 计算特征值和特征向量。用它们来表示节点。 聚类： 将节点根据它们在representation 空间中的情况聚类。 Graph Partitioning Let’s formalize the task we would like to solve. We start out with an undirected graph G(V,E). Our goal is to partition VV into two disjoint groups A,B (so A∩B=∅ and A∪B=V) in a way that maximizes the number of connections internal to the groups and minimizes the number of connections between the two groups. To further formalize the objective, let’s introduce some terminology: 首先对问题作出定义： Cut: how much connection there is between two disjoint sets of nodes. cut(A,B)=∑i∈A,j∈Bwij where wij is the weight of the edge between nodes i and j. 即类A和类B之间的边的总和，如果是有权重的，就是总加权和。 Minimum cut:  使得两个部分之间联系最少的分割。 Since we want to minimize the number of connections between A and B, we might decide to make the minimum cut our objective. However, we find that we end up with very unintuitive clusters this way – we can often simply set A to be a single node with very few outgoing connections, and B to be the rest of the network, to get a very small cut. What we need is a measure that also considers internal cluster connectivity. 但是仅仅考虑两个分割之间的边数是不够的，例如有一个悬挂节点，那么它和网络其他部分的边数为1, 把它作为一个类，两个类就会非常不平衡。 所以，也要考虑到聚类的内部联系。用 conductance 来衡量聚类的好坏，conductance越小，越好。 Enter the conductance, which balances between-group and within-group connectivity concerns. We define  where the total (weighted) degree of the nodes in A. We can roughly think of conductance as analogous to a surface area to volume ratio: the numerator is the area of the shared surface between A and B, and the denominator measures volume while trying to ensure A and B have similar volumes. Because of this nuanced measure, picking A and B to minimize the conductance results in more balanced partitions than minimizing the cut. The challenge then becomes to efficiently find a good partition, since minimizing conductance is NP-hard. 最小化conductance是一个NP-Hard问题。 spectral graph partitioning 首先定义图的邻接矩阵A。 然后假设有一个vector x， x是所有顶点的label。 那么Ax = y ，yi的意义就是： 节点i 的所有邻居的label的总和。 特征值和特征向量的意义？ Ax = λx，意味着，有一种特殊的节点的labeling 方式，使得 我们把一个节点i的所有邻居的label加起来，作为这个节点的新label，这个label就只是原来分配的label的λ倍， 且这个倍数是对所有的节点都一样的。 Enter spectral graph partitioning, a method that will allow us to pin down the conductance using eigenvectors. We’ll start by introducing some basic techniques in spectral graph theory. The goal of spectral graph theory is to analyze the “spectrum” of matrices representing graphs. By spectrum we mean the set Λ={λ1,…,λn} of eigenvalues λiλi of a matrix representing a graph, in order of their magnitudes, along with their corresponding eigenvalues. For example, the largest eigenvector/eigenvalue pair for the adjacency matrix of a d-regular graph is the all-ones vector x=(1,1,…,1), with eigenvalue λ=d. 可以证明， d-regular 的图中， d就是邻接矩阵最大的特征值。（1,1,…1)是它对应的唯一的特征向量。 Exercise: what are some eigenvectors for a disconnected graph with two components, each component d-regular? Note that by the spectral theorem, the adjacency matrix (which is real and symmetric) has a complete spectrum of orthogonal eigenvectors. 然后，如果是有两个连通部分，每个都是d-regular的，那么我们把一边标记为0，一边标为1， x=(0,0,..0,1,1,..1), Ax=lambdax， λ就是d。同样，也可以把一边标为1一边标为0.所以当有两个联通部分的时候， λn=λn-1. multiplicity=2（也就是λ的出现次数）。 当有k个联通部分，λn的multiplicity就是k。 What kinds of matrices can we analyze using spectral graph theory? The adjacency matrix: this matrix is a good starting point due to its direct relation to graph structure. It also has the important property of being symmetric, which means that it has a complete spectrum of real-valued, orthogonal eigenvectors.A的特征向量是正交的！！！所以，xn · xn-1=0, 如果图是d-regular连通图，那么xn=(1,1,1,…), 那么xn-1的元素和必须为0. 那么 xn-1中的元素会有一些&amp;gt;0, 有一些小于0！ 它就把点集分成了两半！ Laplacian matrix ： 性质： L 的对角线是 i的度数， 而在i，j 相连的地方，Lij=-1. x=（1，1, …1） 那么 Lx=0. 所以， λ=λ1=0 最小的那个特征值是0. 那么，所有特征值都是非负的。 L也是实对称阵， 那么特征向量也都是正交的，并且有n个特征值。 In particular, λ2, the second smallest eigenvalue of L, is already fascinating and studying it will let us make big strides in understanding graph clustering. By the theory of Rayleigh quotients, we have that where w1is the eigenvector corresponding to eigenvalue λ1; in other words, we minimize the objective in the subspace of vectors orthogonal to the first eigenvector in order to find the second eigenvector (remember that L is symmetric and thus has an orthogonal basis of eigenvalues). 就会变成： 这个目标的意义就是， xi - xj可以看作是节点i和节点j的label的距离，而当ijlabel 一个为正一个为负的时候，他们的距离平方就会大，如果是同一个分组的，平方和就会小。 那么这个式子就是在将节点分成两半，然后要横跨两个部分的边越少越好。（同一边的越多越好） how to find optimal cut （Fiedler） 这个yi 只能取1或负1，是节点的label。这个目标实际上和λ2的目标很相似，只不过λ2那个式子里，xlabel是可以取任意实值的。但是，这个没办法求出精确解， 所以，有了下面的约束，并且让y可以取任意实值：因为和y的大小没有关系，所以可以约束 y =1， 而 就是让 A == B 的一个约束。 所以， λ2 = min f(y) 而， x = arg miny f(y) y的解就是λ2对应的特征向量。 Now that we have a link between an eigenvalue of L and graph partitioning, let’s push the connection further and see if we can get rid of the hard |A|=|B| constraint – maybe there is a link between the more flexible conductance measure and λ2. Let’s rephrase conductance here in the following way: if a graph Gis partitioned into A and B where |A|≤|B| , then the conductance of the cut is defined as β=cut(A,B)/|A| . A result called the Cheeger inequality links β to λ2: in particular,  where kmax is the maximum node degree in the graph. The upper bound on λ2 is most useful to us for graph partitioning, since we are trying to minimize the conductance; it says that λ2 gives us a good estimate of the conductance – we never overestimate it more than by a factor of 2! The corresponding eigenvector x is defined by xi=−1/a if i∈A and xj=1/b if i∈B ; the signs of the entries of x give us the partition assignments of each node. λ2可以作为分割的metrics conductance 的一个良好近似，因为λ2≤ 2β， 所以估计值比真实值大最多一倍。 Spectral Clustering 实做 算出图的Laplacian matrix L 计算出L 的特征值λ和特征矩阵x ， 第二小的那个λ2 对应的特征向量x2， 对应了每个节点的label grouping，决定x2 从哪个值分成两个partition，一般是0 K 个partition怎么办 recursively cut into 2 partitions cluster multiple eigenvectors， 不仅是看x2， 也看x3， x4……，一个节点就会由p个值来label， 然后可以把这些在p维空间聚类。 如何选择有多少个聚类？ 如何确定k？ eigengap： 两个相邻的特征值的绝对值差。 Most stable clustering is generally given by the value k that maximizes eigengap Δk （这里的特征值是从大到小排序的，取从大到小扫描，两个相邻值相差最大的k） Motif-Based Spectral Clustering What if we want to cluster by higher-level patterns than raw edges? We can instead cluster graph motifs into “modules”. We can do everything in an analogous way. Let’s start by proposing analogous definitions for cut, volume and conductance: motifs cut：cutM(S): 是一些节点在一个partition，而另一些节点在另一个partition中的motifs的数量。 volm(S): 是S中motif m的节点的数量。 motif conductance： 找到optimal cut 也一样是np-hard问题 算法： preprocessing： 把原来的图转变为 一个 weighted graph，边的权重= 这条边参与motif的个数。 apply spectral cluster： 根据转化后的加权图，算出它的邻接矩阵A和laplacian矩阵L。 并且求L的特征值和特征向量 λ2和x2 grouping： 对节点按x2中的值从小到大排序， 然后分别从第i个节点处分割， 每次分割算出在第i个节点分割的motif conductance， conductance 最小的那个就是近似最好的分割。 这样比直接从0分成两半要好。 这个近似也是有可证明的保障的： Again, we can prove a motif version of the Cheeger inequality to show that the motif conductance found by our algorithm is bounded above by  , where  is the optimal conductance.</summary></entry><entry><title type="html">[论文阅读笔记]Please Forget Where I Was Last Summer:The Privacy Risks of Public Location (Meta)Data 社交应用位置元数据的隐私暴露问题</title><link href="http://localhost:4000/paper%20reading/2020/03/01/privacy/" rel="alternate" type="text/html" title="[论文阅读笔记]Please Forget Where I Was Last Summer:The Privacy Risks of Public Location (Meta)Data 社交应用位置元数据的隐私暴露问题" /><published>2020-03-01T00:00:00+08:00</published><updated>2020-03-01T00:00:00+08:00</updated><id>http://localhost:4000/paper%20reading/2020/03/01/privacy</id><content type="html" xml:base="http://localhost:4000/paper%20reading/2020/03/01/privacy/">&lt;p&gt;论文题目：Please Forget Where I Was Last Summer:The Privacy Risks of Public Location (Meta)Data&lt;/p&gt;
+&lt;p&gt;is the optimal conductance.&lt;/p&gt;</content><author><name>Shutong Chen</name></author><category term="[&quot;social network&quot;, &quot;graph-based machine learning&quot;]" /><category term="notes" /><summary type="html">这是斯坦福cs224w的课程笔记，根据老师讲课内容、ppt和助教的笔记和自己的理解整理的。 cs224w的资源在b站和youtube都有，不过没有字幕，jure老师的口音挺可爱的，听一俩节课也习惯了，不过有时候还是配合助教的笔记看清楚一些。 助教的笔记： https://snap-stanford.github.io/cs224w-notes/network-methods/spectral-clustering 课程网站（有ppt和作业）：http://web.stanford.edu/class/cs224w/ 另外， 之前没有发现原来文章的排版那么难看！稍微改了一下行距，可能会好一些orz 如果有空我会把英文部分尽量都翻译过来的</summary></entry><entry><title type="html">[论文阅读笔记]Please Forget Where I Was Last Summer:The Privacy Risks of Public Location (Meta)Data 社交应用位置元数据的隐私暴露问题</title><link href="http://localhost:4000/paper%20reading/2020/03/01/privacy/" rel="alternate" type="text/html" title="[论文阅读笔记]Please Forget Where I Was Last Summer:The Privacy Risks of Public Location (Meta)Data 社交应用位置元数据的隐私暴露问题" /><published>2020-03-01T00:00:00+08:00</published><updated>2020-03-01T00:00:00+08:00</updated><id>http://localhost:4000/paper%20reading/2020/03/01/privacy</id><content type="html" xml:base="http://localhost:4000/paper%20reading/2020/03/01/privacy/">&lt;p&gt;论文题目：Please Forget Where I Was Last Summer:The Privacy Risks of Public Location (Meta)Data&lt;/p&gt;
 
 &lt;p&gt;链接：&lt;/p&gt;
 
