@@ -352,6 +352,230 @@
   
 
   <article class="post post-type- " itemscope itemtype="http://schema.org/Article">
+    <link itemprop="mainEntityOfPage" href="http://localhost:4000/paper%20reading/2020/04/25/membershipinference/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="Shutong Chen">
+      <meta itemprop="description" content="">
+      <meta itemprop="image" content="/assets/images/avatar.jpg">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Shutong Chen's Blog">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h2 class="post-title" itemprop="name headline">
+          
+          
+            
+                
+                <a class="post-title-link" href="/paper%20reading/2020/04/25/membershipinference/" itemprop="url">
+                [论文笔记]Knock Knock, Who's There? Membership Inference on Aggregate Location Data
+              </a>
+            
+          
+        </h2>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">Posted on</span>
+              
+              <time title="Post created" itemprop="dateCreated datePublished" datetime="2020-04-25T00:00:00+08:00">
+                2020-04-25
+              </time>
+            
+
+            
+              <span class="post-meta-divider">|</span>
+            
+
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-check-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">Post modified</span>
+              
+              <time title="Post modified" itemprop="dateModified" datetime="">
+                
+              </time>
+            
+          </span>
+
+          
+            <span class="post-category" >
+            
+              <span class="post-meta-divider">|</span>
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">In</span>
+              
+              
+                
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/category/#/Paper%20Reading" itemprop="url" rel="index">
+                    <span itemprop="name">Paper Reading</span>
+                  </a>
+                </span>
+
+                
+                
+              
+            </span>
+          
+
+          
+            
+              <span class="post-comments-count">
+                <span class="post-meta-divider">|</span>
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-comment-o"></i>
+                </span>
+                <a href="/paper%20reading/2020/04/25/membershipinference/#comments" itemprop="discussionUrl">
+                  <span class="post-comments-count wf-count-unit" wf-page-url="http://localhost:4000/paper%20reading/2020/04/25/membershipinference/" itemprop="commentCount"></span>
+                </a>
+              </span>
+            
+          
+
+          
+          
+             <span id="/paper%20reading/2020/04/25/membershipinference/" class="leancloud_visitors" data-flag-title="[论文笔记]Knock Knock, Who's There? Membership Inference on Aggregate Location Data">
+               <span class="post-meta-divider">|</span>
+               <span class="post-meta-item-icon">
+                 <i class="fa fa-eye"></i>
+               </span>
+               
+                 <span class="post-meta-item-text">Visitors </span>
+               
+                 <span class="leancloud-visitors-count"></span>
+             </span>
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        
+          
+  
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  <p>论文：NDSS 2018的best paper award：Knock Knock, Who’s There? Membership Inference on Aggregate Location Data</p>
+
+<p><a href="https://arxiv.org/abs/1708.06145">Knock Knock, Who’s There? Membership Inference on Aggregate Location Data</a></p>
+
+<p>在涉及数据公开的时候，为了保护用户的隐私，机构通常会公开统计数据，隐去可以识别个体的信息，在公开数据的时候，还要注意不能让人从统计数据中推断出个体的信息。</p>
+
+<p>现在有越来越多的应用，为了提供某些功能需要收集用户的位置序列，并发布聚集的位置信息，例如收集车辆的位置序列来显示一张动态的交通情况地图，估算某条路线的拥堵情况；或者聚集显示某个餐厅的人数，来估算等待时间。因为位置信息、特别是时间序列的位置很敏感，可以从中得到许多用户的个人隐私，所以这种位置的统计数据更要注意不能泄露个体信息。<a href="https://arxiv.org/abs/1703.00366">https://arxiv.org/abs/1703.00366</a>这篇文章表明如果有目标用户移动轨迹的一些先验知识，就可以从聚集的数据中挖掘得到更多信息，甚至可以定位该用户； 有时用户的轨迹可以直接从聚集数据中推断，而不需要任何先验的知识。</p>
+
+<p>要从统计数据中推断个体，首先就必须要能推断出某个目标个体的数据是不是该聚集的一部分，这个叫做membership inference. 基于membership inference，membership inference attack最开始是在Membership Inference Attacks Against Machine Learning Models</p>
+
+<p><a href="https://www.cs.cornell.edu/~shmat/shmat_oak17.pdf"></a></p>
+
+<p>这篇论文中提出来的一种新的攻击方式，在MIA这篇论文中关注的是机器学习模型的隐私泄露问题，就是推断目标是否出现在某个模型的训练集中。 Membership inference 的方法也可以用在数据提供者要发布统计数据的时候，评估发布的危险性。</p>
+
+<p>作者将membership inference作为一个分类问题，即对一个target user，预测它是否是某个聚集数据的成员。在两个数据集上测试，结果预测的AUC非常高，在有先验知识的情况下，甚至在每一个聚集都包含9500个用户的时候AUC还能达到 1.0。 他们也测试了影响预测正确率的一些因素，例如，每组用户人数、timeframe、数据的颗粒度、稀疏程度。他们用基于差分隐私的方法来研究如何对抗成员推断攻击，发现这种对抗总体都是比较有效的，但是会以牺牲功能为代价，而且当攻击者使用噪声数据来训练的时候，这种保护的效果就不那么好了。</p>
+
+<p>本文的贡献：</p>
+
+<ol>
+  <li>提出一种聚集位置序列数据的成员推断方法</li>
+  <li>用该方法去量化raw aggregate的隐私泄露问题</li>
+  <li>阐述了这种方法可以如何用来研究defense mechanism的有效性</li>
+</ol>
+
+
+
+          <!--noindex-->
+          <div class="post-button text-center">
+            <a class="btn" href="/paper%20reading/2020/04/25/membershipinference/#more" rel="contents">
+              Read more &raquo;
+            </a>
+          </div>
+          <!--/noindex-->
+        
+      
+    </div>
+
+    <div>
+      
+    </div>
+
+    <div>
+      
+    </div>
+
+    <div>
+      
+    </div>
+
+    <footer class="post-footer">
+      
+
+      
+
+      
+
+      
+        
+        
+        
+        
+          <div class="post-eof"></div>
+        
+      
+    </footer>
+  </article>
+
+  
+    
+    
+
+  
+
+  
+  
+  
+
+  <article class="post post-type- " itemscope itemtype="http://schema.org/Article">
     <link itemprop="mainEntityOfPage" href="http://localhost:4000/social%20network/graph-based%20machine%20learning/2020/03/29/cs224w8/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
@@ -2265,212 +2489,6 @@
         
         
         
-          <div class="post-eof"></div>
-        
-      
-    </footer>
-  </article>
-
-  
-    
-    
-
-  
-
-  
-  
-  
-
-  <article class="post post-type- " itemscope itemtype="http://schema.org/Article">
-    <link itemprop="mainEntityOfPage" href="http://localhost:4000/paper%20reading/2020/01/30/NPA/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="name" content="Shutong Chen">
-      <meta itemprop="description" content="">
-      <meta itemprop="image" content="/assets/images/avatar.jpg">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Shutong Chen's Blog">
-    </span>
-
-    
-      <header class="post-header">
-
-        
-        
-          <h2 class="post-title" itemprop="name headline">
-          
-          
-            
-                
-                <a class="post-title-link" href="/paper%20reading/2020/01/30/NPA/" itemprop="url">
-                [论文笔记]基于个性化注意力机制的新闻推荐
-              </a>
-            
-          
-        </h2>
-        
-
-        <div class="post-meta">
-          <span class="post-time">
-            
-              <span class="post-meta-item-icon">
-                <i class="fa fa-calendar-o"></i>
-              </span>
-              
-                <span class="post-meta-item-text">Posted on</span>
-              
-              <time title="Post created" itemprop="dateCreated datePublished" datetime="2020-01-30T00:00:00+08:00">
-                2020-01-30
-              </time>
-            
-
-            
-              <span class="post-meta-divider">|</span>
-            
-
-            
-              <span class="post-meta-item-icon">
-                <i class="fa fa-calendar-check-o"></i>
-              </span>
-              
-                <span class="post-meta-item-text">Post modified</span>
-              
-              <time title="Post modified" itemprop="dateModified" datetime="">
-                
-              </time>
-            
-          </span>
-
-          
-            <span class="post-category" >
-            
-              <span class="post-meta-divider">|</span>
-            
-              <span class="post-meta-item-icon">
-                <i class="fa fa-folder-o"></i>
-              </span>
-              
-                <span class="post-meta-item-text">In</span>
-              
-              
-                
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/category/#/Paper%20Reading" itemprop="url" rel="index">
-                    <span itemprop="name">Paper Reading</span>
-                  </a>
-                </span>
-
-                
-                
-              
-            </span>
-          
-
-          
-            
-              <span class="post-comments-count">
-                <span class="post-meta-divider">|</span>
-                <span class="post-meta-item-icon">
-                  <i class="fa fa-comment-o"></i>
-                </span>
-                <a href="/paper%20reading/2020/01/30/NPA/#comments" itemprop="discussionUrl">
-                  <span class="post-comments-count wf-count-unit" wf-page-url="http://localhost:4000/paper%20reading/2020/01/30/NPA/" itemprop="commentCount"></span>
-                </a>
-              </span>
-            
-          
-
-          
-          
-             <span id="/paper%20reading/2020/01/30/NPA/" class="leancloud_visitors" data-flag-title="[论文笔记]基于个性化注意力机制的新闻推荐">
-               <span class="post-meta-divider">|</span>
-               <span class="post-meta-item-icon">
-                 <i class="fa fa-eye"></i>
-               </span>
-               
-                 <span class="post-meta-item-text">Visitors </span>
-               
-                 <span class="leancloud-visitors-count"></span>
-             </span>
-          
-
-          
-
-          
-
-          
-
-        </div>
-      </header>
-    
-
-    <div class="post-body" itemprop="articleBody">
-
-      
-      
-
-      
-        
-          
-  
-  
-
-
-
-
-
-
-
-
-
-
-
-
-  <h1 id="基于个性化注意力机制的新闻推荐">基于个性化注意力机制的新闻推荐</h1>
-
-<p>论文链接：<a href="https://arxiv.org/pdf/1907.05559.pdf">https://arxiv.org/pdf/1907.05559.pdf</a></p>
-
-<p>这篇论文是2019年SIGKDD的7篇精选论文之一。主要解决的是新闻推荐中个性化的问题。</p>
-
-
-
-          <!--noindex-->
-          <div class="post-button text-center">
-            <a class="btn" href="/paper%20reading/2020/01/30/NPA/#more" rel="contents">
-              Read more &raquo;
-            </a>
-          </div>
-          <!--/noindex-->
-        
-      
-    </div>
-
-    <div>
-      
-    </div>
-
-    <div>
-      
-    </div>
-
-    <div>
-      
-    </div>
-
-    <footer class="post-footer">
-      
-
-      
-
-      
-
-      
-        
-        
-        
-        
       
     </footer>
   </article>
@@ -2478,6 +2496,16 @@
   
 </section>
 
+
+  <nav class="pagination">
+    
+    
+    
+
+
+
+    <span class="page-number current">1</span> <a class="page-number" href="/page2">2</a> <a class="extend prev" rel="next" href="/page2"><i class="fa fa-angle-right"></i></a>
+  </nav>
 
 
 
@@ -2522,7 +2550,7 @@
           
             <div class="site-state-item site-state-posts">
               <a href="/archives/">
-                <span class="site-state-item-count">10</span>
+                <span class="site-state-item-count">11</span>
                 <span class="site-state-item-name">posts</span>
               </a>
             </div>
@@ -2544,7 +2572,7 @@
             
             <div class="site-state-item site-state-tags">
               <a href="/tags/">
-                <span class="site-state-item-count">10</span>
+                <span class="site-state-item-count">11</span>
                 <span class="site-state-item-name">tags</span>
               </a>
             </div>
